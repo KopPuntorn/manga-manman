@@ -505,51 +505,52 @@ export default function ReaderPage() {
               }}
               data-page-index={idx}
             >
-              <img src={pageUrl} alt={`Page ${idx + 1}`} loading={idx < 3 ? 'eager' : 'lazy'} />
+              <div className="reader-image-container" style={{ position: 'relative', display: 'inline-block', maxWidth: '100%' }}>
+                <img src={pageUrl} alt={`Page ${idx + 1}`} loading={idx < 3 ? 'eager' : 'lazy'} />
 
-              {/* Translation overlay */}
-              {translationMode !== 'off' && translations[idx] && (
-                <TranslationOverlay
-                  texts={translations[idx].result.texts}
-                  mode={translationMode}
-                  theme={bubbleTheme}
-                  size={bubbleSize}
-                  onEditBlock={(blockIdx, block) => handleOpenEdit(idx, blockIdx, block)}
-                />
-              )}
+                {/* Translation overlay */}
+                {translationMode !== 'off' && translations[idx] && (
+                  <TranslationOverlay
+                    texts={translations[idx].result.texts}
+                    mode={translationMode}
+                    theme={bubbleTheme}
+                    size={bubbleSize}
+                    onEditBlock={(blockIdx, block) => handleOpenEdit(idx, blockIdx, block)}
+                  />
+                )}
 
+                {/* Individual Translate button */}
+                {translationMode !== 'off' && !translations[idx] && !translatingPages.has(idx) && (
+                  <div style={{ position: 'absolute', top: '10px', right: '10px', zIndex: 20 }}>
+                    <button className="btn btn-primary btn-sm" onClick={() => translateSpecificPage(idx)}>
+                      🌐 แปลหน้านี้
+                    </button>
+                  </div>
+                )}
 
-              {/* Individual Translate button */}
-              {translationMode !== 'off' && !translations[idx] && !translatingPages.has(idx) && (
-                <div style={{ position: 'absolute', top: '10px', right: '10px', zIndex: 20 }}>
-                  <button className="btn btn-primary btn-sm" onClick={() => translateSpecificPage(idx)}>
-                    🌐 แปลหน้านี้
-                  </button>
-                </div>
-              )}
-
-              {/* Translating Spinner */}
-              {translatingPages.has(idx) && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: '10px',
-                    right: '10px',
-                    zIndex: 20,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    padding: '6px 12px',
-                    background: 'rgba(0, 0, 0, 0.85)',
-                    borderRadius: 'var(--radius-md)',
-                    color: 'var(--accent-primary)',
-                    fontSize: '0.8rem',
-                  }}
-                >
-                  <div className="spinner" style={{ width: '16px', height: '16px', borderWidth: '2px' }} />
-                  กำลังแปล...
-                </div>
-              )}
+                {/* Translating Spinner */}
+                {translatingPages.has(idx) && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: '10px',
+                      right: '10px',
+                      zIndex: 20,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '6px 12px',
+                      background: 'rgba(0, 0, 0, 0.85)',
+                      borderRadius: 'var(--radius-md)',
+                      color: 'var(--accent-primary)',
+                      fontSize: '0.8rem',
+                    }}
+                  >
+                    <div className="spinner" style={{ width: '16px', height: '16px', borderWidth: '2px' }} />
+                    กำลังแปล...
+                  </div>
+                )}
+              </div>
             </div>
           ))}
         </div>
@@ -565,25 +566,27 @@ export default function ReaderPage() {
           </div>
 
           <div className="reader-page" style={{ margin: '0 auto', maxWidth: '100%' }}>
-            <img src={pages[currentPage]} alt={`Page ${currentPage + 1}`} />
+            <div className="reader-image-container" style={{ position: 'relative', display: 'inline-block', maxWidth: '100%' }}>
+              <img src={pages[currentPage]} alt={`Page ${currentPage + 1}`} />
 
-            {translationMode !== 'off' && translations[currentPage] && (
-              <TranslationOverlay
-                texts={translations[currentPage].result.texts}
-                mode={translationMode}
-                theme={bubbleTheme}
-                size={bubbleSize}
-                onEditBlock={(blockIdx, block) => handleOpenEdit(currentPage, blockIdx, block)}
-              />
-            )}
+              {translationMode !== 'off' && translations[currentPage] && (
+                <TranslationOverlay
+                  texts={translations[currentPage].result.texts}
+                  mode={translationMode}
+                  theme={bubbleTheme}
+                  size={bubbleSize}
+                  onEditBlock={(blockIdx, block) => handleOpenEdit(currentPage, blockIdx, block)}
+                />
+              )}
 
-            {translationMode !== 'off' && !translations[currentPage] && !translatingPages.has(currentPage) && (
-              <div style={{ position: 'absolute', top: '10px', right: '10px', zIndex: 20 }}>
-                <button className="btn btn-primary btn-sm" onClick={() => translateSpecificPage(currentPage)}>
-                  🌐 แปลหน้านี้
-                </button>
-              </div>
-            )}
+              {translationMode !== 'off' && !translations[currentPage] && !translatingPages.has(currentPage) && (
+                <div style={{ position: 'absolute', top: '10px', right: '10px', zIndex: 20 }}>
+                  <button className="btn btn-primary btn-sm" onClick={() => translateSpecificPage(currentPage)}>
+                    🌐 แปลหน้านี้
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -600,34 +603,39 @@ export default function ReaderPage() {
           {/* Right Page (First in spread for Manga RTL reading) */}
           {currentPage + 1 < pages.length && (
             <div className="reader-page" style={{ flex: 1, maxWidth: '50%' }}>
-              <img src={pages[currentPage + 1]} alt={`Page ${currentPage + 2}`} />
-              {translationMode !== 'off' && translations[currentPage + 1] && (
-                <TranslationOverlay
-                  texts={translations[currentPage + 1].result.texts}
-                  mode={translationMode}
-                  theme={bubbleTheme}
-                  size={bubbleSize}
-                  onEditBlock={(blockIdx, block) => handleOpenEdit(currentPage + 1, blockIdx, block)}
-                />
-              )}
+              <div className="reader-image-container" style={{ position: 'relative', display: 'inline-block', maxWidth: '100%' }}>
+                <img src={pages[currentPage + 1]} alt={`Page ${currentPage + 2}`} />
+                {translationMode !== 'off' && translations[currentPage + 1] && (
+                  <TranslationOverlay
+                    texts={translations[currentPage + 1].result.texts}
+                    mode={translationMode}
+                    theme={bubbleTheme}
+                    size={bubbleSize}
+                    onEditBlock={(blockIdx, block) => handleOpenEdit(currentPage + 1, blockIdx, block)}
+                  />
+                )}
+              </div>
             </div>
           )}
 
           {/* Left Page */}
           <div className="reader-page" style={{ flex: 1, maxWidth: '50%' }}>
-            <img src={pages[currentPage]} alt={`Page ${currentPage + 1}`} />
-            {translationMode !== 'off' && translations[currentPage] && (
-              <TranslationOverlay
-                texts={translations[currentPage].result.texts}
-                mode={translationMode}
-                theme={bubbleTheme}
-                size={bubbleSize}
-                onEditBlock={(blockIdx, block) => handleOpenEdit(currentPage, blockIdx, block)}
-              />
-            )}
+            <div className="reader-image-container" style={{ position: 'relative', display: 'inline-block', maxWidth: '100%' }}>
+              <img src={pages[currentPage]} alt={`Page ${currentPage + 1}`} />
+              {translationMode !== 'off' && translations[currentPage] && (
+                <TranslationOverlay
+                  texts={translations[currentPage].result.texts}
+                  mode={translationMode}
+                  theme={bubbleTheme}
+                  size={bubbleSize}
+                  onEditBlock={(blockIdx, block) => handleOpenEdit(currentPage, blockIdx, block)}
+                />
+              )}
+            </div>
           </div>
         </div>
       )}
+
 
 
       {/* Chapter end navigation footer */}
