@@ -50,6 +50,8 @@ export default function ReaderPage() {
   const [translatingPages, setTranslatingPages] = useState<Set<number>>(new Set());
   const [failedPages, setFailedPages] = useState<Set<number>>(new Set());
   const [translationError, setTranslationError] = useState('');
+  const [translatingAll, setTranslatingAll] = useState(false);
+  const [translateProgress, setTranslateProgress] = useState({ current: 0, total: 0 });
 
   // Edit Translation Bubble Modal
   const [editingBlock, setEditingBlock] = useState<{
@@ -111,47 +113,6 @@ export default function ReaderPage() {
     fetchPages();
   }, [chapterId]);
 
-  // Webtoon Intersection observer for current page tracking & predictive auto-translation
-  useEffect(() => {
-    if (readingMode !== 'webtoon' || pages.length === 0) return;
-
-    observerRef.current = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            const idx = Number(entry.target.getAttribute('data-page-index'));
-            if (!isNaN(idx)) {
-              setCurrentPage(idx);
-              // Predictive auto-translate: trigger translation for this page and next page immediately
-              if (translationMode !== 'off' && !translations[idx] && !translatingPages.has(idx)) {
-                translateSpecificPage(idx, false);
-              }
-            }
-          }
-        });
-      },
-      { rootMargin: '1000px 0px 1000px 0px', threshold: 0.1 }
-    );
-
-    pageRefs.current.forEach((ref) => {
-      if (ref) observerRef.current?.observe(ref);
-    });
-
-    return () => observerRef.current?.disconnect();
-  }, [pages, readingMode, translationMode, translations, translatingPages, translateSpecificPage]);
-
-
-  // Save reading history periodically
-  useEffect(() => {
-    if (!mangaId || !chapterId || pages.length === 0) return;
-
-    const timer = setTimeout(() => {
-      updateHistory(mangaId, chapterId, currentPage).catch(() => {});
-    }, 1500);
-
-    return () => clearTimeout(timer);
-  }, [currentPage, mangaId, chapterId, pages.length]);
-
   // Translate a specific page
   const translateSpecificPage = useCallback(
     async (pageIndex: number, force = false) => {
@@ -189,6 +150,46 @@ export default function ReaderPage() {
     [chapterId, pages, translations, translatingPages, failedPages]
   );
 
+  // Webtoon Intersection observer for current page tracking & predictive auto-translation
+  useEffect(() => {
+    if (readingMode !== 'webtoon' || pages.length === 0) return;
+
+    observerRef.current = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            const idx = Number(entry.target.getAttribute('data-page-index'));
+            if (!isNaN(idx)) {
+              setCurrentPage(idx);
+              // Predictive auto-translate: trigger translation for this page and next page immediately
+              if (translationMode !== 'off' && !translations[idx] && !translatingPages.has(idx)) {
+                translateSpecificPage(idx, false);
+              }
+            }
+          }
+        });
+      },
+      { rootMargin: '1000px 0px 1000px 0px', threshold: 0.1 }
+    );
+
+    pageRefs.current.forEach((ref) => {
+      if (ref) observerRef.current?.observe(ref);
+    });
+
+    return () => observerRef.current?.disconnect();
+  }, [pages, readingMode, translationMode, translations, translatingPages, translateSpecificPage]);
+
+  // Save reading history periodically
+  useEffect(() => {
+    if (!mangaId || !chapterId || pages.length === 0) return;
+
+    const timer = setTimeout(() => {
+      updateHistory(mangaId, chapterId, currentPage).catch(() => {});
+    }, 1500);
+
+    return () => clearTimeout(timer);
+  }, [currentPage, mangaId, chapterId, pages.length]);
+
   // Auto-translate current page if translation enabled
   useEffect(() => {
     if (
@@ -221,8 +222,6 @@ export default function ReaderPage() {
   }, [currentPage, translationMode, pages.length, translations, failedPages, translatingPages, translateSpecificPage]);
 
   // Translate all pages of the chapter in parallel batches
-  const [translatingAll, setTranslatingAll] = useState(false);
-  const [translateProgress, setTranslateProgress] = useState({ current: 0, total: 0 });
 
   const translateAllPages = async () => {
     if (translatingAll || pages.length === 0) return;
@@ -252,9 +251,14 @@ export default function ReaderPage() {
         ...prev,
         current: Math.min(prev.total, prev.current + batch.length),
       }));
+      // Gentle pacing to avoid Free Tier 15 RPM quota spikes
+      if (i + concurrency < untranslatedIndices.length) {
+        await new Promise((r) => setTimeout(r, 800));
+      }
     }
     setTranslatingAll(false);
   };
+
 
 
 

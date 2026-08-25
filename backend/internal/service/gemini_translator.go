@@ -129,8 +129,8 @@ If no text is on the page, return {"texts": []}.`
 
 	var respBody []byte
 
-	// Retry up to 3 times on temporary 503 or 429 errors
-	for attempt := 0; attempt < 3; attempt++ {
+	// Retry up to 4 times on temporary 503 or 429 rate limit errors
+	for attempt := 0; attempt < 4; attempt++ {
 
 		req, err := http.NewRequestWithContext(ctx, "POST", geminiURL, bytes.NewReader(jsonBody))
 		if err != nil {
@@ -153,15 +153,19 @@ If no text is on the page, return {"texts": []}.`
 			break
 		}
 
-
-		// If temporary high demand (503) or rate limit (429), sleep and retry
-		if (resp.StatusCode == http.StatusServiceUnavailable || resp.StatusCode == http.StatusTooManyRequests) && attempt < 2 {
-			time.Sleep(time.Duration(attempt+1) * 1500 * time.Millisecond)
+		// If temporary high demand (503) or rate limit (429), sleep and retry with backoff
+		if (resp.StatusCode == http.StatusServiceUnavailable || resp.StatusCode == http.StatusTooManyRequests) && attempt < 3 {
+			sleepDuration := time.Duration(attempt+1) * 2500 * time.Millisecond
+			if resp.StatusCode == http.StatusTooManyRequests {
+				sleepDuration = time.Duration(attempt+1) * 3500 * time.Millisecond
+			}
+			time.Sleep(sleepDuration)
 			continue
 		}
 
 		return nil, fmt.Errorf("gemini API returned %d: %s", resp.StatusCode, string(respBody))
 	}
+
 
 
 	var geminiResp struct {
