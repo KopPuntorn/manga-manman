@@ -13,9 +13,10 @@ import (
 )
 
 const (
-	groqAPIURL   = "https://api.groq.com/openai/v1/chat/completions"
-	groqModel    = "meta-llama/llama-4-scout-17b-16e-instruct"
+	groqAPIURL = "https://api.groq.com/openai/v1/chat/completions"
+	groqModel  = "llama-3.2-11b-vision-preview"
 )
+
 
 type GroqTranslator struct {
 	apiKey string
