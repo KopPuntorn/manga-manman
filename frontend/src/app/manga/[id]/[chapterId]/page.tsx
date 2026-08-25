@@ -901,8 +901,7 @@ function TranslationOverlay({
       {texts.map((block, idx) => {
         const leftPercent = normalizePos(block.x) * 100;
         const topPercent = normalizePos(block.y) * 100;
-        const widthPercent = Math.max(14, Math.min(50, normalizePos(block.width || 0.22) * 100));
-        const minHeightPercent = Math.max(4, Math.min(45, normalizePos(block.height || 0.10) * 100));
+        const widthPercent = Math.max(12, Math.min(36, normalizePos(block.width || 0.20) * 100));
 
         return (
           <div
@@ -912,8 +911,9 @@ function TranslationOverlay({
               left: `${leftPercent}%`,
               top: `${topPercent}%`,
               width: `${widthPercent}%`,
-              minHeight: `${minHeightPercent}%`,
-              maxWidth: '55%',
+              height: 'auto',
+              maxHeight: '40%',
+              maxWidth: '42%',
             }}
             onClick={(e) => {
               e.stopPropagation();
@@ -942,6 +942,7 @@ function TranslationOverlay({
       })}
     </div>
   );
+
 }
 
 
