@@ -45,6 +45,7 @@ export default function ReaderPage() {
   // Translation state
   const [translations, setTranslations] = useState<Record<number, Translation>>({});
   const [translatingPages, setTranslatingPages] = useState<Set<number>>(new Set());
+  const [failedPages, setFailedPages] = useState<Set<number>>(new Set());
   const [translationError, setTranslationError] = useState('');
 
   // Edit Translation Bubble Modal
@@ -145,10 +146,11 @@ export default function ReaderPage() {
 
   // Translate a specific page
   const translateSpecificPage = useCallback(
-    async (pageIndex: number) => {
+    async (pageIndex: number, force = false) => {
       if (pageIndex < 0 || pageIndex >= pages.length) return;
       if (translatingPages.has(pageIndex)) return;
       if (translations[pageIndex]) return;
+      if (!force && failedPages.has(pageIndex)) return;
 
       setTranslatingPages((prev) => new Set(prev).add(pageIndex));
       setTranslationError('');
@@ -159,8 +161,15 @@ export default function ReaderPage() {
           ...prev,
           [pageIndex]: result,
         }));
+        setFailedPages((prev) => {
+          const next = new Set(prev);
+          next.delete(pageIndex);
+          return next;
+        });
       } catch (err) {
-        setTranslationError(err instanceof Error ? err.message : 'Translation failed');
+        const msg = err instanceof Error ? err.message : 'Translation failed';
+        setTranslationError(msg);
+        setFailedPages((prev) => new Set(prev).add(pageIndex));
       } finally {
         setTranslatingPages((prev) => {
           const next = new Set(prev);
@@ -169,15 +178,21 @@ export default function ReaderPage() {
         });
       }
     },
-    [chapterId, pages, translations, translatingPages]
+    [chapterId, pages, translations, translatingPages, failedPages]
   );
 
   // Auto-translate current page if translation enabled
   useEffect(() => {
-    if (translationMode !== 'off' && pages.length > 0 && !translations[currentPage]) {
-      translateSpecificPage(currentPage);
+    if (
+      translationMode !== 'off' &&
+      pages.length > 0 &&
+      !translations[currentPage] &&
+      !failedPages.has(currentPage)
+    ) {
+      translateSpecificPage(currentPage, false);
     }
-  }, [currentPage, translationMode, pages.length, translations, translateSpecificPage]);
+  }, [currentPage, translationMode, pages.length, translations, failedPages, translateSpecificPage]);
+
 
   // Chapter Navigation
   const currentChapterIndex = chapterList.findIndex((c) => c.id === chapterId);
