@@ -8,11 +8,13 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"sync/atomic"
 	"time"
 
 	"github.com/manga-manman/backend/internal/model"
 )
+
 
 
 
@@ -226,6 +228,7 @@ If no dialogue bubbles exist on this page, return {"texts": []}.`
 
 	text := geminiResp.Candidates[0].Content.Parts[0].Text
 	text = extractJSON(text)
+	text = sanitizeJSONString(text)
 
 	var rawResult struct {
 		Texts []struct {
@@ -238,6 +241,7 @@ If no dialogue bubbles exist on this page, return {"texts": []}.`
 			Height   float64     `json:"height"`
 		} `json:"texts"`
 	}
+
 
 	if err := json.Unmarshal([]byte(text), &rawResult); err != nil {
 		// If unmarshal fails on textless responses, return clean empty result
@@ -363,5 +367,35 @@ func toFloat(val interface{}) float64 {
 	}
 	return 0
 }
+
+func sanitizeJSONString(s string) string {
+	lines := strings.Split(s, "\n")
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, `"thai":`) || strings.HasPrefix(trimmed, `"original":`) {
+			colonIdx := strings.Index(line, ":")
+			if colonIdx != -1 {
+				valPart := strings.TrimSpace(line[colonIdx+1:])
+				if strings.HasPrefix(valPart, `"`) && (strings.HasSuffix(valPart, `",`) || strings.HasSuffix(valPart, `"`)) {
+					hasComma := strings.HasSuffix(valPart, ",")
+					valText := valPart[1 : len(valPart)-1]
+					if hasComma {
+						valText = valPart[1 : len(valPart)-2]
+					}
+					// Replace internal unescaped double quotes with single quotes
+					cleanedVal := strings.ReplaceAll(valText, `\"`, `'`)
+					cleanedVal = strings.ReplaceAll(cleanedVal, `"`, `'`)
+					if hasComma {
+						lines[i] = line[:colonIdx+1] + ` "` + cleanedVal + `",`
+					} else {
+						lines[i] = line[:colonIdx+1] + ` "` + cleanedVal + `"`
+					}
+				}
+			}
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
 
 

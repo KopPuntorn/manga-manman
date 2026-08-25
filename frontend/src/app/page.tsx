@@ -48,7 +48,8 @@ export default function HomePage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState('');
   const [offset, setOffset] = useState(0);
-  const PAGE_SIZE = 24;
+  const PAGE_SIZE = 36;
+
 
   // Resolve contentRating array based on selection
   const getContentRatings = (rating: 'all' | 'safe' | 'suggestive' | 'mature', tag: string): string[] => {
