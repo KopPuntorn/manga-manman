@@ -154,7 +154,9 @@ func (s *MangaDexService) SearchMangaFiltered(filters model.MangaSearchFilters) 
 	} else {
 		params.Add("contentRating[]", "safe")
 		params.Add("contentRating[]", "suggestive")
+		params.Add("contentRating[]", "erotica")
 	}
+
 
 	reqURL := fmt.Sprintf("%s/manga?%s", mangadexBaseURL, params.Encode())
 	body, err := s.doGet(reqURL)
@@ -249,37 +251,89 @@ func (s *MangaDexService) GetChapterListWithOrder(mangaID string, limit, offset 
 	if order != "desc" {
 		order = "asc"
 	}
-	params := url.Values{}
-	params.Set("limit", fmt.Sprintf("%d", limit))
-	params.Set("offset", fmt.Sprintf("%d", offset))
-	params.Add("translatedLanguage[]", "en")
-	params.Add("translatedLanguage[]", "ja")
-	params.Set("order[chapter]", order)
-	params.Add("includes[]", "scanlation_group")
-
-	reqURL := fmt.Sprintf("%s/manga/%s/feed?%s", mangadexBaseURL, mangaID, params.Encode())
-	body, err := s.doGet(reqURL)
-	if err != nil {
-		return nil, 0, err
+	if limit <= 0 {
+		limit = 500
 	}
 
-	var resp mdResponse
-	if err := json.Unmarshal(body, &resp); err != nil {
-		return nil, 0, fmt.Errorf("unmarshal chapter feed: %w", err)
+	// MangaDex API allows max limit=100 per call. We paginate in batches of 100 up to requested limit.
+	var allChapters []model.Chapter
+	totalChapters := 0
+	seenChapterNums := make(map[string]bool)
+
+	currentOffset := offset
+	targetFetch := limit
+
+	for len(allChapters) < targetFetch {
+		batchLimit := 100
+		if targetFetch-len(allChapters) < 100 {
+			batchLimit = targetFetch - len(allChapters)
+		}
+
+		params := url.Values{}
+		params.Set("limit", fmt.Sprintf("%d", batchLimit))
+		params.Set("offset", fmt.Sprintf("%d", currentOffset))
+		params.Add("translatedLanguage[]", "en")
+		params.Add("translatedLanguage[]", "ja")
+		params.Add("translatedLanguage[]", "th")
+		params.Add("contentRating[]", "safe")
+		params.Add("contentRating[]", "suggestive")
+		params.Add("contentRating[]", "erotica")
+		params.Set("order[chapter]", order)
+		params.Add("includes[]", "scanlation_group")
+
+		reqURL := fmt.Sprintf("%s/manga/%s/feed?%s", mangadexBaseURL, mangaID, params.Encode())
+		body, err := s.doGet(reqURL)
+		if err != nil {
+			if len(allChapters) > 0 {
+				break
+			}
+			return nil, 0, err
+		}
+
+		var resp mdResponse
+		if err := json.Unmarshal(body, &resp); err != nil {
+			if len(allChapters) > 0 {
+				break
+			}
+			return nil, 0, fmt.Errorf("unmarshal chapter feed: %w", err)
+		}
+
+		totalChapters = resp.Total
+
+		var rawChapters []mdChapter
+		if err := json.Unmarshal(resp.Data, &rawChapters); err != nil {
+			if len(allChapters) > 0 {
+				break
+			}
+			return nil, 0, fmt.Errorf("unmarshal chapters: %w", err)
+		}
+
+		if len(rawChapters) == 0 {
+			break
+		}
+
+		for _, ch := range rawChapters {
+			parsed := s.toChapter(ch)
+			// Deduplicate chapter entries with the same chapter number and language if duplicate
+			key := fmt.Sprintf("%s_%s", parsed.Chapter, parsed.Language)
+			if parsed.Chapter != "" && seenChapterNums[key] {
+				continue
+			}
+			if parsed.Chapter != "" {
+				seenChapterNums[key] = true
+			}
+			allChapters = append(allChapters, parsed)
+		}
+
+		currentOffset += len(rawChapters)
+		if currentOffset >= resp.Total {
+			break
+		}
 	}
 
-	var chapters []mdChapter
-	if err := json.Unmarshal(resp.Data, &chapters); err != nil {
-		return nil, 0, fmt.Errorf("unmarshal chapters: %w", err)
-	}
-
-	results := make([]model.Chapter, 0, len(chapters))
-	for _, ch := range chapters {
-		results = append(results, s.toChapter(ch))
-	}
-
-	return results, resp.Total, nil
+	return allChapters, totalChapters, nil
 }
+
 
 
 func (s *MangaDexService) GetChapterPages(chapterID string) (*model.ChapterPages, error) {
