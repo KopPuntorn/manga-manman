@@ -927,35 +927,39 @@ function TranslationOverlay({
   return (
     <div className="translation-overlay">
       {texts.map((block, idx) => {
-        const leftPercent = normalizePos(block.x) * 100;
-        const topPercent = normalizePos(block.y) * 100;
-        const widthPercent = Math.max(8, Math.min(50, normalizePos(block.width || 0.18) * 100));
-        const heightPercent = Math.max(3, Math.min(45, normalizePos(block.height || 0.08) * 100));
+        const x = normalizePos(block.x);
+        const y = normalizePos(block.y);
+        const w = normalizePos(block.width || 0.15);
+        const h = normalizePos(block.height || 0.08);
 
-        // Auto-scale font size dynamically based on Thai text length so it fits neatly inside the bubble
+        // Center anchor point inside the speech bubble
+        const centerXPercent = Math.min(90, Math.max(10, (x + w / 2) * 100));
+        const centerYPercent = Math.min(94, Math.max(6, (y + h / 2) * 100));
+
+        // Auto-scale font size dynamically based on Thai text length
         const textLen = (block.thai || '').length;
         let fontSizeStyle = '0.84rem';
-        let lineHeightStyle = '1.28';
+        let lineHeightStyle = '1.30';
 
         if (size === 'sm') {
-          if (textLen > 40) fontSizeStyle = '0.60rem';
-          else if (textLen > 25) fontSizeStyle = '0.66rem';
+          if (textLen > 40) fontSizeStyle = '0.62rem';
+          else if (textLen > 25) fontSizeStyle = '0.68rem';
           else fontSizeStyle = '0.74rem';
         } else if (size === 'lg') {
-          if (textLen > 40) fontSizeStyle = '0.78rem';
-          else if (textLen > 25) fontSizeStyle = '0.88rem';
-          else fontSizeStyle = '1.02rem';
+          if (textLen > 40) fontSizeStyle = '0.82rem';
+          else if (textLen > 25) fontSizeStyle = '0.92rem';
+          else fontSizeStyle = '1.04rem';
         } else {
           // Default 'md'
           if (textLen > 45) {
-            fontSizeStyle = '0.65rem';
-            lineHeightStyle = '1.16';
-          } else if (textLen > 30) {
-            fontSizeStyle = '0.72rem';
+            fontSizeStyle = '0.68rem';
             lineHeightStyle = '1.20';
-          } else if (textLen > 18) {
-            fontSizeStyle = '0.78rem';
+          } else if (textLen > 30) {
+            fontSizeStyle = '0.74rem';
             lineHeightStyle = '1.24';
+          } else if (textLen > 18) {
+            fontSizeStyle = '0.80rem';
+            lineHeightStyle = '1.28';
           }
         }
 
@@ -964,14 +968,16 @@ function TranslationOverlay({
             key={idx}
             className={`translation-bubble theme-${theme} size-${size} mode-${mode}`}
             style={{
-              left: `${leftPercent}%`,
-              top: `${topPercent}%`,
-              width: `${widthPercent}%`,
-              minHeight: `${heightPercent}%`,
+              left: `${centerXPercent}%`,
+              top: `${centerYPercent}%`,
+              transform: 'translate(-50%, -50%)',
+              width: 'auto',
+              minWidth: '40px',
+              maxWidth: 'min(240px, 46%)',
               height: 'auto',
               fontSize: fontSizeStyle,
               lineHeight: lineHeightStyle,
-              padding: '3px 5px',
+              padding: '4px 8px',
             }}
             onClick={(e) => {
               e.stopPropagation();
@@ -982,7 +988,6 @@ function TranslationOverlay({
             <span className="edit-badge">✏️</span>
 
             {mode === 'thai' && <div className="thai-text">{block.thai}</div>}
-
 
             {mode === 'sidebyside' && (
               <>
@@ -1001,7 +1006,7 @@ function TranslationOverlay({
       })}
     </div>
   );
-
 }
+
 
 
