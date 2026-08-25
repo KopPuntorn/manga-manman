@@ -39,8 +39,11 @@ export default function ReaderPage() {
   // Reader Settings & Mode
   const [readingMode, setReadingMode] = useState<ReadingMode>('webtoon');
   const [translationMode, setTranslationMode] = useState<TranslationMode>('thai');
+  const [bubbleTheme, setBubbleTheme] = useState<'manga' | 'soft' | 'dark'>('manga');
+  const [bubbleSize, setBubbleSize] = useState<'sm' | 'md' | 'lg'>('md');
   const [showControls, setShowControls] = useState(true);
   const [showHelpModal, setShowHelpModal] = useState(false);
+
 
   // Translation state
   const [translations, setTranslations] = useState<Record<number, Translation>>({});
@@ -427,9 +430,12 @@ export default function ReaderPage() {
                 <TranslationOverlay
                   texts={translations[idx].result.texts}
                   mode={translationMode}
+                  theme={bubbleTheme}
+                  size={bubbleSize}
                   onEditBlock={(blockIdx, block) => handleOpenEdit(idx, blockIdx, block)}
                 />
               )}
+
 
               {/* Individual Translate button */}
               {translationMode !== 'off' && !translations[idx] && !translatingPages.has(idx) && (
@@ -483,6 +489,8 @@ export default function ReaderPage() {
               <TranslationOverlay
                 texts={translations[currentPage].result.texts}
                 mode={translationMode}
+                theme={bubbleTheme}
+                size={bubbleSize}
                 onEditBlock={(blockIdx, block) => handleOpenEdit(currentPage, blockIdx, block)}
               />
             )}
@@ -515,6 +523,8 @@ export default function ReaderPage() {
                 <TranslationOverlay
                   texts={translations[currentPage + 1].result.texts}
                   mode={translationMode}
+                  theme={bubbleTheme}
+                  size={bubbleSize}
                   onEditBlock={(blockIdx, block) => handleOpenEdit(currentPage + 1, blockIdx, block)}
                 />
               )}
@@ -528,12 +538,15 @@ export default function ReaderPage() {
               <TranslationOverlay
                 texts={translations[currentPage].result.texts}
                 mode={translationMode}
+                theme={bubbleTheme}
+                size={bubbleSize}
                 onEditBlock={(blockIdx, block) => handleOpenEdit(currentPage, blockIdx, block)}
               />
             )}
           </div>
         </div>
       )}
+
 
       {/* Chapter end navigation footer */}
       <div style={{ textAlign: 'center', marginTop: '32px', display: 'flex', justifyContent: 'center', gap: '16px' }}>
@@ -600,12 +613,56 @@ export default function ReaderPage() {
           </button>
         </div>
 
+        {/* Bubble Style & Font Size Controls */}
+        {translationMode !== 'off' && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', borderLeft: '1px solid rgba(255,255,255,0.15)', paddingLeft: '8px' }}>
+            {/* Bubble Theme Toggle */}
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={() => setBubbleTheme(bubbleTheme === 'manga' ? 'dark' : bubbleTheme === 'dark' ? 'soft' : 'manga')}
+              title={`ธีมกล่อง: ${bubbleTheme === 'manga' ? '⚪ มังงะสีขาว' : bubbleTheme === 'dark' ? '🌙 มืดโปร่ง' : '🌓 นวล'}`}
+              style={{ padding: '4px 8px', fontSize: '0.8rem' }}
+            >
+              {bubbleTheme === 'manga' ? '⚪ ขาว' : bubbleTheme === 'dark' ? '🌙 มืด' : '🌓 นวล'}
+            </button>
+
+            {/* Font Size Toggle */}
+            <div className="pill-group" style={{ margin: 0 }}>
+              <button
+                className={`pill-item ${bubbleSize === 'sm' ? 'active' : ''}`}
+                onClick={() => setBubbleSize('sm')}
+                title="ตัวหนังสือเล็ก"
+                style={{ padding: '3px 7px', fontSize: '0.72rem' }}
+              >
+                A-
+              </button>
+              <button
+                className={`pill-item ${bubbleSize === 'md' ? 'active' : ''}`}
+                onClick={() => setBubbleSize('md')}
+                title="ตัวหนังสือขนาดกลาง (แนะนำ)"
+                style={{ padding: '3px 7px', fontSize: '0.78rem' }}
+              >
+                A
+              </button>
+              <button
+                className={`pill-item ${bubbleSize === 'lg' ? 'active' : ''}`}
+                onClick={() => setBubbleSize('lg')}
+                title="ตัวหนังสือใหญ่"
+                style={{ padding: '3px 7px', fontSize: '0.86rem' }}
+              >
+                A+
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Translate current page trigger */}
         {translationMode !== 'off' && !translations[currentPage] && !translatingPages.has(currentPage) && (
           <button className="btn btn-primary btn-sm btn-translate" onClick={() => translateSpecificPage(currentPage)}>
             🌐 แปลหน้านี้
           </button>
         )}
+
 
         {translatingPages.has(currentPage) && (
           <span style={{ fontSize: '0.8rem', color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -731,10 +788,14 @@ export default function ReaderPage() {
 function TranslationOverlay({
   texts,
   mode,
+  theme = 'manga',
+  size = 'md',
   onEditBlock,
 }: {
   texts: TextBlock[];
   mode: TranslationMode;
+  theme?: 'manga' | 'soft' | 'dark';
+  size?: 'sm' | 'md' | 'lg';
   onEditBlock: (index: number, block: TextBlock) => void;
 }) {
   if (!texts || texts.length === 0 || mode === 'off') return null;
@@ -744,11 +805,13 @@ function TranslationOverlay({
       {texts.map((block, idx) => (
         <div
           key={idx}
-          className={`translation-bubble mode-${mode}`}
+          className={`translation-bubble theme-${theme} size-${size} mode-${mode}`}
           style={{
             left: `${block.x * 100}%`,
             top: `${block.y * 100}%`,
-            maxWidth: `${Math.max(block.width * 100, 18)}%`,
+            width: `${Math.max(block.width * 100, 14)}%`,
+            minHeight: `${Math.max(block.height * 100, 4)}%`,
+            maxWidth: '50%',
           }}
           onClick={(e) => {
             e.stopPropagation();
@@ -758,18 +821,23 @@ function TranslationOverlay({
         >
           <span className="edit-badge">✏️ Edit</span>
 
-          {mode === 'thai' && <div>{block.thai}</div>}
+          {mode === 'thai' && <div className="thai-text">{block.thai}</div>}
 
           {mode === 'sidebyside' && (
             <>
-              <div>{block.thai}</div>
+              <div className="thai-text">{block.thai}</div>
               <div className="original-text">{block.original}</div>
             </>
           )}
 
-          {mode === 'original' && <div>{block.original}</div>}
+          {mode === 'original' && (
+            <div className="original-text" style={{ fontSize: 'inherit', border: 'none', color: 'inherit' }}>
+              {block.original}
+            </div>
+          )}
         </div>
       ))}
     </div>
   );
 }
+

@@ -654,64 +654,123 @@ input {
   pointer-events: none;
 }
 
+/* Base Translation Bubble - Authentic Manga Style */
 .translation-bubble {
   position: absolute;
-  background: rgba(10, 10, 20, 0.92);
-  backdrop-filter: blur(8px);
-  border: 1px solid var(--accent-primary);
-  border-radius: var(--radius-sm);
+  background: #ffffff;
+  color: #090d16;
+  font-family: 'Prompt', 'Kanit', system-ui, -apple-system, sans-serif;
+  border: 1.5px solid #1e293b;
+  border-radius: 8px;
   padding: 6px 10px;
-  color: #fff;
-  font-size: 0.8rem;
-  font-weight: 500;
-  line-height: 1.35;
+  font-weight: 700;
+  line-height: 1.38;
+  letter-spacing: -0.01em;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
   pointer-events: auto;
   cursor: pointer;
   z-index: 10;
-  max-width: 260px;
+  min-width: 60px;
+  max-width: 320px;
+  word-break: break-word;
   transition: all var(--transition-fast);
-  animation: fadeIn 0.3s ease;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  animation: fadeIn 0.25s ease;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35), 0 1px 3px rgba(0, 0, 0, 0.2);
+  user-select: text;
 }
 
 .translation-bubble:hover {
-  background: rgba(20, 20, 35, 0.98);
-  border-color: #fbbf24;
+  border-color: var(--accent-primary);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5), 0 0 0 2px var(--accent-primary);
   transform: scale(1.03);
-  z-index: 25;
+  z-index: 30;
+}
+
+/* Bubble Theme Variants */
+.translation-bubble.theme-manga {
+  background: #ffffff;
+  color: #000000;
+  border: 1.5px solid #111111;
+}
+
+.translation-bubble.theme-soft {
+  background: rgba(255, 255, 255, 0.94);
+  color: #0f172a;
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(0, 0, 0, 0.2);
+}
+
+.translation-bubble.theme-dark {
+  background: rgba(10, 14, 26, 0.94);
+  color: #f8fafc;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+}
+
+/* Font Size Scales */
+.translation-bubble.size-sm {
+  font-size: 0.78rem;
+  padding: 4px 8px;
+}
+
+.translation-bubble.size-md {
+  font-size: 0.92rem;
+  padding: 6px 10px;
+}
+
+.translation-bubble.size-lg {
+  font-size: 1.12rem;
+  padding: 8px 14px;
 }
 
 .translation-bubble.mode-sidebyside {
-  background: rgba(15, 23, 42, 0.95);
-  border-color: #38bdf8;
+  border-color: #0284c7;
 }
 
 .translation-bubble.mode-original {
-  background: rgba(30, 41, 59, 0.95);
-  border-color: #94a3b8;
-  color: #cbd5e1;
+  background: #f1f5f9;
+  color: #334155;
+  border-color: #64748b;
+}
+
+.translation-bubble .thai-text {
+  font-weight: 700;
+  width: 100%;
 }
 
 .translation-bubble .original-text {
-  font-size: 0.68rem;
-  color: #94a3b8;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: #64748b;
   margin-top: 4px;
-  border-top: 1px solid rgba(255, 255, 255, 0.15);
-  padding-top: 3px;
+  border-top: 1px dashed rgba(0, 0, 0, 0.2);
+  padding-top: 4px;
+  width: 100%;
+}
+
+.translation-bubble.theme-dark .original-text {
+  color: #94a3b8;
+  border-top-color: rgba(255, 255, 255, 0.2);
 }
 
 .translation-bubble .edit-badge {
   position: absolute;
   top: -8px;
   right: -8px;
-  background: var(--accent-secondary);
-  color: #fff;
-  font-size: 0.6rem;
-  padding: 1px 4px;
+  background: #f59e0b;
+  color: #000;
+  font-size: 0.62rem;
+  padding: 1px 5px;
   border-radius: 4px;
-  font-weight: 600;
+  font-weight: 700;
   opacity: 0;
   transition: opacity var(--transition-fast);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 .translation-bubble:hover .edit-badge {
@@ -723,6 +782,7 @@ input {
   position: fixed;
   top: 0;
   left: 0;
+
   right: 0;
   height: 56px;
   background: rgba(10, 10, 15, 0.92);
