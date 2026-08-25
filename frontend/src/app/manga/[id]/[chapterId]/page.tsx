@@ -337,12 +337,7 @@ export default function ReaderPage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [editingBlock, goToNextPage, goToPrevPage]);
 
-  // Scroll to current page when page changes in Single / Double mode
-  useEffect(() => {
-    if (readingMode === 'webtoon' && pageRefs.current[currentPage]) {
-      pageRefs.current[currentPage]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  }, [currentPage, readingMode]);
+
 
   // Handle Edit Bubble
   const handleOpenEdit = (pageIdx: number, blockIdx: number, block: TextBlock) => {
