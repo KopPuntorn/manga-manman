@@ -910,10 +910,10 @@ function TranslationOverlay({
             style={{
               left: `${leftPercent}%`,
               top: `${topPercent}%`,
-              width: `${widthPercent}%`,
+              width: 'auto',
+              minWidth: '65px',
+              maxWidth: '62%',
               height: 'auto',
-              maxHeight: '40%',
-              maxWidth: '42%',
             }}
             onClick={(e) => {
               e.stopPropagation();
@@ -921,6 +921,7 @@ function TranslationOverlay({
             }}
             title="คลิกเพื่อแก้ไขคำแปล"
           >
+
             <span className="edit-badge">✏️ Edit</span>
 
             {mode === 'thai' && <div className="thai-text">{block.thai}</div>}

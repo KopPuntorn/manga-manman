@@ -763,6 +763,18 @@ input {
   color: var(--text-secondary);
 }
 
+/* === Hide Navbar & Remove Padding in Reader Mode === */
+body:has(.reader-wrapper) .navbar {
+  display: none !important;
+}
+
+body:has(.reader-wrapper) .main-content {
+  padding-top: 0 !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  max-width: 100% !important;
+}
+
 /* === Translation Overlay === */
 .translation-overlay {
   position: absolute;
@@ -779,27 +791,30 @@ input {
   background: #ffffff;
   color: #090d16;
   font-family: 'Prompt', 'Kanit', system-ui, -apple-system, sans-serif;
-  border: 1.5px solid #1e293b;
+  border: 1.5px solid #111827;
   border-radius: 8px;
-  padding: 6px 10px;
+  padding: 5px 9px;
   font-weight: 700;
-  line-height: 1.38;
+  line-height: 1.35;
   letter-spacing: -0.01em;
   text-align: center;
-  display: flex;
+  display: inline-flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
   pointer-events: auto;
   cursor: pointer;
   z-index: 10;
-  min-width: 60px;
-  max-width: 320px;
-  word-break: break-word;
+  min-width: 80px;
+  max-width: 88%;
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: break-word;
   transition: all var(--transition-fast);
   animation: fadeIn 0.25s ease;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35), 0 1px 3px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.25);
   user-select: text;
+  box-sizing: border-box;
 }
 
 .translation-bubble:hover {
@@ -817,35 +832,36 @@ input {
 }
 
 .translation-bubble.theme-soft {
-  background: rgba(255, 255, 255, 0.94);
+  background: rgba(255, 255, 255, 0.95);
   color: #0f172a;
   backdrop-filter: blur(6px);
-  border: 1px solid rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(0, 0, 0, 0.25);
 }
 
 .translation-bubble.theme-dark {
-  background: rgba(10, 14, 26, 0.94);
+  background: rgba(10, 14, 26, 0.96);
   color: #f8fafc;
   backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.3);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
 }
 
 /* Font Size Scales */
 .translation-bubble.size-sm {
-  font-size: 0.78rem;
-  padding: 4px 8px;
+  font-size: 0.76rem;
+  padding: 4px 7px;
 }
 
 .translation-bubble.size-md {
-  font-size: 0.92rem;
-  padding: 6px 10px;
+  font-size: 0.90rem;
+  padding: 5px 9px;
 }
 
 .translation-bubble.size-lg {
-  font-size: 1.12rem;
-  padding: 8px 14px;
+  font-size: 1.08rem;
+  padding: 7px 12px;
 }
+
 
 .translation-bubble.mode-sidebyside {
   border-color: #0284c7;
