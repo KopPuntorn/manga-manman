@@ -1,0 +1,80 @@
+package database
+
+import (
+	"context"
+	"fmt"
+	"log"
+	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+func Connect(databaseURL string) (*pgxpool.Pool, error) {
+	config, err := pgxpool.ParseConfig(databaseURL)
+	if err != nil {
+		return nil, fmt.Errorf("parse database URL: %w", err)
+	}
+
+	config.MaxConns = 10
+	config.MinConns = 2
+	config.MaxConnLifetime = 30 * time.Minute
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	pool, err := pgxpool.NewWithConfig(ctx, config)
+	if err != nil {
+		return nil, fmt.Errorf("create connection pool: %w", err)
+	}
+
+	if err := pool.Ping(ctx); err != nil {
+		return nil, fmt.Errorf("ping database: %w", err)
+	}
+
+	log.Println("✅ Connected to PostgreSQL")
+	return pool, nil
+}
+
+func Migrate(pool *pgxpool.Pool) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	migrations := []string{
+		`CREATE TABLE IF NOT EXISTS translations (
+			id          SERIAL PRIMARY KEY,
+			chapter_id  VARCHAR(255) NOT NULL,
+			page_index  INT NOT NULL,
+			image_hash  VARCHAR(255),
+			result      JSONB NOT NULL,
+			provider    VARCHAR(50) NOT NULL,
+			created_at  TIMESTAMP DEFAULT NOW(),
+			UNIQUE(chapter_id, page_index)
+		)`,
+		`CREATE TABLE IF NOT EXISTS library (
+			id         SERIAL PRIMARY KEY,
+			manga_id   VARCHAR(255) UNIQUE NOT NULL,
+			title      TEXT NOT NULL,
+			cover_url  TEXT,
+			added_at   TIMESTAMP DEFAULT NOW()
+		)`,
+		`CREATE TABLE IF NOT EXISTS reading_history (
+			id           SERIAL PRIMARY KEY,
+			manga_id     VARCHAR(255) NOT NULL,
+			chapter_id   VARCHAR(255) NOT NULL,
+			page_index   INT DEFAULT 0,
+			updated_at   TIMESTAMP DEFAULT NOW(),
+			UNIQUE(manga_id, chapter_id)
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_translations_chapter ON translations(chapter_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_history_manga ON reading_history(manga_id)`,
+	}
+
+	for _, sql := range migrations {
+		if _, err := pool.Exec(ctx, sql); err != nil {
+			return fmt.Errorf("run migration: %w", err)
+		}
+	}
+
+	log.Println("✅ Database migrations complete")
+	return nil
+}
