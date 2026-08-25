@@ -929,7 +929,35 @@ function TranslationOverlay({
       {texts.map((block, idx) => {
         const leftPercent = normalizePos(block.x) * 100;
         const topPercent = normalizePos(block.y) * 100;
-        const widthPercent = Math.max(12, Math.min(36, normalizePos(block.width || 0.20) * 100));
+        const widthPercent = Math.max(8, Math.min(50, normalizePos(block.width || 0.18) * 100));
+        const heightPercent = Math.max(3, Math.min(45, normalizePos(block.height || 0.08) * 100));
+
+        // Auto-scale font size dynamically based on Thai text length so it fits neatly inside the bubble
+        const textLen = (block.thai || '').length;
+        let fontSizeStyle = '0.84rem';
+        let lineHeightStyle = '1.28';
+
+        if (size === 'sm') {
+          if (textLen > 40) fontSizeStyle = '0.60rem';
+          else if (textLen > 25) fontSizeStyle = '0.66rem';
+          else fontSizeStyle = '0.74rem';
+        } else if (size === 'lg') {
+          if (textLen > 40) fontSizeStyle = '0.78rem';
+          else if (textLen > 25) fontSizeStyle = '0.88rem';
+          else fontSizeStyle = '1.02rem';
+        } else {
+          // Default 'md'
+          if (textLen > 45) {
+            fontSizeStyle = '0.65rem';
+            lineHeightStyle = '1.16';
+          } else if (textLen > 30) {
+            fontSizeStyle = '0.72rem';
+            lineHeightStyle = '1.20';
+          } else if (textLen > 18) {
+            fontSizeStyle = '0.78rem';
+            lineHeightStyle = '1.24';
+          }
+        }
 
         return (
           <div
@@ -938,10 +966,12 @@ function TranslationOverlay({
             style={{
               left: `${leftPercent}%`,
               top: `${topPercent}%`,
-              width: 'auto',
-              minWidth: '65px',
-              maxWidth: '62%',
+              width: `${widthPercent}%`,
+              minHeight: `${heightPercent}%`,
               height: 'auto',
+              fontSize: fontSizeStyle,
+              lineHeight: lineHeightStyle,
+              padding: '3px 5px',
             }}
             onClick={(e) => {
               e.stopPropagation();
@@ -949,10 +979,10 @@ function TranslationOverlay({
             }}
             title="คลิกเพื่อแก้ไขคำแปล"
           >
-
-            <span className="edit-badge">✏️ Edit</span>
+            <span className="edit-badge">✏️</span>
 
             {mode === 'thai' && <div className="thai-text">{block.thai}</div>}
+
 
             {mode === 'sidebyside' && (
               <>

@@ -793,22 +793,19 @@ body:has(.reader-wrapper) .main-content {
   font-family: 'Prompt', 'Kanit', system-ui, -apple-system, sans-serif;
   border: 1.5px solid #111827;
   border-radius: 8px;
-  padding: 5px 9px;
+  padding: 3px 5px;
   font-weight: 700;
-  line-height: 1.35;
   letter-spacing: -0.01em;
   text-align: center;
-  display: inline-flex;
+  display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
   pointer-events: auto;
   cursor: pointer;
   z-index: 10;
-  min-width: 80px;
-  max-width: 88%;
   white-space: normal;
-  word-break: normal;
+  word-break: break-word;
   overflow-wrap: break-word;
   transition: all var(--transition-fast);
   animation: fadeIn 0.25s ease;
@@ -816,6 +813,7 @@ body:has(.reader-wrapper) .main-content {
   user-select: text;
   box-sizing: border-box;
 }
+
 
 .translation-bubble:hover {
   border-color: var(--accent-primary);
