@@ -20,16 +20,23 @@ type GeminiTranslator struct {
 }
 
 func NewGeminiTranslator(apiKey string) *GeminiTranslator {
+	// Optimized HTTP client with connection pooling for sub-second requests
+	transport := &http.Transport{
+		MaxIdleConns:        100,
+		MaxIdleConnsPerHost: 20,
+		IdleConnTimeout:     90 * time.Second,
+		DisableCompression:  false,
+	}
+
 	return &GeminiTranslator{
 		apiKey: apiKey,
-		model:  "gemini-3.6-flash",
+		model:  "gemini-flash-lite-latest",
 		client: &http.Client{
-			Timeout: 60 * time.Second,
+			Transport: transport,
+			Timeout:   45 * time.Second,
 		},
 	}
 }
-
-
 
 func (g *GeminiTranslator) Provider() string {
 	return "gemini"
@@ -58,14 +65,15 @@ func (g *GeminiTranslator) TranslatePage(ctx context.Context, imageURL string) (
 		return nil, fmt.Errorf("read image bytes: %w", err)
 	}
 
-	// Optimize image before sending to Gemini
-	compressedBytes, err := optimizeMangaImage(imgBytes, 1200)
+	// Optimize image: downscale to 900px width for fastest OCR upload & sub-second processing
+	compressedBytes, err := optimizeMangaImage(imgBytes, 900)
 	if err != nil {
 		compressedBytes = imgBytes
 	}
 
 	base64Data := base64.StdEncoding.EncodeToString(compressedBytes)
 	contentType := "image/jpeg"
+
 
 
 	prompt := `You are an expert Japanese manga translator. Analyze this manga page image and:

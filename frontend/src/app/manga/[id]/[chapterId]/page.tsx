@@ -196,6 +196,64 @@ export default function ReaderPage() {
     }
   }, [currentPage, translationMode, pages.length, translations, failedPages, translateSpecificPage]);
 
+  // Intelligent Prefetching: Auto-translate next 2 pages ahead in the background for instant reading
+  useEffect(() => {
+    if (translationMode === 'off' || pages.length === 0) return;
+
+    const prefetchTimer = setTimeout(() => {
+      const targets = [currentPage + 1, currentPage + 2];
+      targets.forEach((nextIdx) => {
+        if (
+          nextIdx < pages.length &&
+          !translations[nextIdx] &&
+          !translatingPages.has(nextIdx) &&
+          !failedPages.has(nextIdx)
+        ) {
+          translateSpecificPage(nextIdx, false);
+        }
+      });
+    }, 400);
+
+    return () => clearTimeout(prefetchTimer);
+  }, [currentPage, translationMode, pages.length, translations, failedPages, translatingPages, translateSpecificPage]);
+
+  // Translate all pages of the chapter in parallel batches
+  const [translatingAll, setTranslatingAll] = useState(false);
+  const [translateProgress, setTranslateProgress] = useState({ current: 0, total: 0 });
+
+  const translateAllPages = async () => {
+    if (translatingAll || pages.length === 0) return;
+    setTranslatingAll(true);
+
+    const untranslatedIndices = pages
+      .map((_, i) => i)
+      .filter((i) => !translations[i]);
+
+    setTranslateProgress({ current: pages.length - untranslatedIndices.length, total: pages.length });
+
+    // Process in concurrent pools of 3
+    const concurrency = 3;
+    for (let i = 0; i < untranslatedIndices.length; i += concurrency) {
+      const batch = untranslatedIndices.slice(i, i + concurrency);
+      await Promise.allSettled(
+        batch.map(async (pageIdx) => {
+          try {
+            const res = await translatePage(chapterId, pageIdx, pages[pageIdx]);
+            setTranslations((prev) => ({ ...prev, [pageIdx]: res }));
+          } catch {
+            // Handled individually
+          }
+        })
+      );
+      setTranslateProgress((prev) => ({
+        ...prev,
+        current: Math.min(prev.total, prev.current + batch.length),
+      }));
+    }
+    setTranslatingAll(false);
+  };
+
+
 
   // Chapter Navigation
   const currentChapterIndex = chapterList.findIndex((c) => c.id === chapterId);
@@ -401,6 +459,26 @@ export default function ReaderPage() {
             </button>
           </div>
 
+          {/* Translate Full Chapter Button */}
+          <button
+            className={`btn btn-sm ${translatingAll ? 'btn-secondary' : 'btn-primary'}`}
+            onClick={translateAllPages}
+            disabled={translatingAll || pages.length === 0}
+            title="แปลล่วงหน้าทั้งตอนพร้อมกันอัตโนมัติ"
+            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+          >
+            {translatingAll ? (
+              <>
+                <div className="spinner" style={{ width: '13px', height: '13px', borderWidth: '2px' }} />
+                <span>แปลทั้งตอน ({translateProgress.current}/{translateProgress.total})</span>
+              </>
+            ) : (
+              <>
+                <span>⚡ แปลทั้งตอน</span>
+              </>
+            )}
+          </button>
+
           <button
             className="btn btn-secondary btn-sm"
             onClick={() => setShowHelpModal(true)}
@@ -410,6 +488,7 @@ export default function ReaderPage() {
           </button>
         </div>
       </header>
+
 
       {/* Main Reader Content according to Reading Mode */}
       {readingMode === 'webtoon' && (
