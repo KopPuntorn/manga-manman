@@ -20,7 +20,7 @@ type GeminiTranslator struct {
 }
 
 func NewGeminiTranslator(apiKey string) *GeminiTranslator {
-	// Optimized HTTP client with connection pooling for sub-second requests
+	// Optimized HTTP client with connection pooling
 	transport := &http.Transport{
 		MaxIdleConns:        100,
 		MaxIdleConnsPerHost: 20,
@@ -30,13 +30,14 @@ func NewGeminiTranslator(apiKey string) *GeminiTranslator {
 
 	return &GeminiTranslator{
 		apiKey: apiKey,
-		model:  "gemini-flash-lite-latest",
+		model:  "gemini-3.6-flash",
 		client: &http.Client{
 			Transport: transport,
-			Timeout:   45 * time.Second,
+			Timeout:   90 * time.Second,
 		},
 	}
 }
+
 
 func (g *GeminiTranslator) Provider() string {
 	return "gemini"

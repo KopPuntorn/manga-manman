@@ -196,23 +196,21 @@ export default function ReaderPage() {
     }
   }, [currentPage, translationMode, pages.length, translations, failedPages, translateSpecificPage]);
 
-  // Intelligent Prefetching: Auto-translate next 2 pages ahead in the background for instant reading
+  // Intelligent Prefetching: Auto-translate next page ahead in background after user settles on current page
   useEffect(() => {
     if (translationMode === 'off' || pages.length === 0) return;
 
     const prefetchTimer = setTimeout(() => {
-      const targets = [currentPage + 1, currentPage + 2];
-      targets.forEach((nextIdx) => {
-        if (
-          nextIdx < pages.length &&
-          !translations[nextIdx] &&
-          !translatingPages.has(nextIdx) &&
-          !failedPages.has(nextIdx)
-        ) {
-          translateSpecificPage(nextIdx, false);
-        }
-      });
-    }, 400);
+      const nextIdx = currentPage + 1;
+      if (
+        nextIdx < pages.length &&
+        !translations[nextIdx] &&
+        !translatingPages.has(nextIdx) &&
+        !failedPages.has(nextIdx)
+      ) {
+        translateSpecificPage(nextIdx, false);
+      }
+    }, 1200);
 
     return () => clearTimeout(prefetchTimer);
   }, [currentPage, translationMode, pages.length, translations, failedPages, translatingPages, translateSpecificPage]);
@@ -231,8 +229,8 @@ export default function ReaderPage() {
 
     setTranslateProgress({ current: pages.length - untranslatedIndices.length, total: pages.length });
 
-    // Process in concurrent pools of 3
-    const concurrency = 3;
+    // Process in gentle concurrent pools of 2
+    const concurrency = 2;
     for (let i = 0; i < untranslatedIndices.length; i += concurrency) {
       const batch = untranslatedIndices.slice(i, i + concurrency);
       await Promise.allSettled(
@@ -252,6 +250,7 @@ export default function ReaderPage() {
     }
     setTranslatingAll(false);
   };
+
 
 
 
