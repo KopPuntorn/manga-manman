@@ -77,26 +77,33 @@ func (g *GeminiTranslator) TranslatePage(ctx context.Context, imageURL string) (
 
 
 
-	prompt := `You are an expert Japanese manga translator. Analyze this manga page image and:
-1. Find ALL dialogue and text blocks in speech bubbles, thought bubbles, narrator boxes, and sound effects.
-2. Read the original text (usually Japanese).
-3. Translate each text block accurately and naturally into Thai.
-4. Estimate bounding box coordinates (x, y, width, height) in 0.0 to 1.0 relative coordinates where (0,0) is top-left.
+	prompt := `You are an expert Japanese manga OCR and Thai translator. Analyze this manga page carefully.
 
-Return ONLY a valid JSON object matching this schema:
+Instructions:
+1. Detect ALL text on this page: speech bubbles, thought clouds, narration boxes, side notes, floating monologue, and Japanese sound effects.
+2. Read the original text (Japanese/English).
+3. Translate each text block accurately and naturally into Thai dialogue.
+4. Provide precise normalized bounding box coordinates for each bubble as float values between 0.0 and 1.0:
+   - "x": left position (0.0 = left edge, 1.0 = right edge)
+   - "y": top position (0.0 = top edge, 1.0 = bottom edge)
+   - "width": width of bubble (usually 0.12 to 0.40)
+   - "height": height of bubble (usually 0.05 to 0.30)
+
+Return ONLY valid JSON matching this schema:
 {
   "texts": [
     {
-      "original": "original Japanese text",
-      "thai": "คำแปลภาษาไทยที่ลื่นไหล",
-      "x": 0.32,
-      "y": 0.18,
-      "width": 0.20,
-      "height": 0.10
+      "original": "original text",
+      "thai": "คำแปลภาษาไทยที่ถูกต้องและเป็นธรรมชาติ",
+      "x": 0.35,
+      "y": 0.20,
+      "width": 0.22,
+      "height": 0.12
     }
   ]
 }
-If no text is on the page, return {"texts": []}.`
+If the page contains no text, return {"texts": []}.`
+
 
 	geminiURL := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s", g.model, g.apiKey)
 
@@ -194,5 +201,66 @@ If no text is on the page, return {"texts": []}.`
 		return nil, fmt.Errorf("unmarshal translation result: %w (content: %s)", err, text)
 	}
 
+	// Normalize and sanitize coordinates (ensure 0.0 <= val <= 1.0)
+	for i := range result.Texts {
+		t := &result.Texts[i]
+		// If model returned on 0-1000 scale
+		if t.X > 10.0 {
+			if t.X > 100.0 {
+				t.X /= 1000.0
+			} else {
+				t.X /= 100.0
+			}
+		}
+		if t.Y > 10.0 {
+			if t.Y > 100.0 {
+				t.Y /= 1000.0
+			} else {
+				t.Y /= 100.0
+			}
+		}
+		if t.Width > 10.0 {
+			if t.Width > 100.0 {
+				t.Width /= 1000.0
+			} else {
+				t.Width /= 100.0
+			}
+		}
+		if t.Height > 10.0 {
+			if t.Height > 100.0 {
+				t.Height /= 1000.0
+			} else {
+				t.Height /= 100.0
+			}
+		}
+
+		// Clamp bounds
+		if t.X < 0 {
+			t.X = 0
+		}
+		if t.X > 0.90 {
+			t.X = 0.85
+		}
+		if t.Y < 0 {
+			t.Y = 0
+		}
+		if t.Y > 0.95 {
+			t.Y = 0.90
+		}
+		if t.Width < 0.08 {
+			t.Width = 0.18
+		}
+		if t.Width > 0.70 {
+			t.Width = 0.50
+		}
+		if t.Height < 0.04 {
+			t.Height = 0.08
+		}
+		if t.Height > 0.60 {
+			t.Height = 0.40
+		}
+	}
+
 	return &result, nil
 }
+

@@ -867,6 +867,12 @@ export default function ReaderPage() {
 }
 
 // --- Translation Overlay Component ---
+function normalizePos(val: number): number {
+  if (val > 100) return val / 1000;
+  if (val > 1) return val / 100;
+  return Math.max(0, Math.min(1, val));
+}
+
 function TranslationOverlay({
   texts,
   mode,
@@ -884,42 +890,50 @@ function TranslationOverlay({
 
   return (
     <div className="translation-overlay">
-      {texts.map((block, idx) => (
-        <div
-          key={idx}
-          className={`translation-bubble theme-${theme} size-${size} mode-${mode}`}
-          style={{
-            left: `${block.x * 100}%`,
-            top: `${block.y * 100}%`,
-            width: `${Math.max(block.width * 100, 14)}%`,
-            minHeight: `${Math.max(block.height * 100, 4)}%`,
-            maxWidth: '50%',
-          }}
-          onClick={(e) => {
-            e.stopPropagation();
-            onEditBlock(idx, block);
-          }}
-          title="คลิกเพื่อแก้ไขคำแปล"
-        >
-          <span className="edit-badge">✏️ Edit</span>
+      {texts.map((block, idx) => {
+        const leftPercent = normalizePos(block.x) * 100;
+        const topPercent = normalizePos(block.y) * 100;
+        const widthPercent = Math.max(14, Math.min(50, normalizePos(block.width || 0.22) * 100));
+        const minHeightPercent = Math.max(4, Math.min(45, normalizePos(block.height || 0.10) * 100));
 
-          {mode === 'thai' && <div className="thai-text">{block.thai}</div>}
+        return (
+          <div
+            key={idx}
+            className={`translation-bubble theme-${theme} size-${size} mode-${mode}`}
+            style={{
+              left: `${leftPercent}%`,
+              top: `${topPercent}%`,
+              width: `${widthPercent}%`,
+              minHeight: `${minHeightPercent}%`,
+              maxWidth: '55%',
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onEditBlock(idx, block);
+            }}
+            title="คลิกเพื่อแก้ไขคำแปล"
+          >
+            <span className="edit-badge">✏️ Edit</span>
 
-          {mode === 'sidebyside' && (
-            <>
-              <div className="thai-text">{block.thai}</div>
-              <div className="original-text">{block.original}</div>
-            </>
-          )}
+            {mode === 'thai' && <div className="thai-text">{block.thai}</div>}
 
-          {mode === 'original' && (
-            <div className="original-text" style={{ fontSize: 'inherit', border: 'none', color: 'inherit' }}>
-              {block.original}
-            </div>
-          )}
-        </div>
-      ))}
+            {mode === 'sidebyside' && (
+              <>
+                <div className="thai-text">{block.thai}</div>
+                <div className="original-text">{block.original}</div>
+              </>
+            )}
+
+            {mode === 'original' && (
+              <div className="original-text" style={{ fontSize: 'inherit', border: 'none', color: 'inherit' }}>
+                {block.original}
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
+
 
