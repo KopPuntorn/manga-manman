@@ -22,12 +22,13 @@ type GeminiTranslator struct {
 func NewGeminiTranslator(apiKey string) *GeminiTranslator {
 	return &GeminiTranslator{
 		apiKey: apiKey,
-		model:  "gemini-1.5-flash",
+		model:  "gemini-2.5-flash",
 		client: &http.Client{
 			Timeout: 60 * time.Second,
 		},
 	}
 }
+
 
 func (g *GeminiTranslator) Provider() string {
 	return "gemini"
@@ -56,11 +57,15 @@ func (g *GeminiTranslator) TranslatePage(ctx context.Context, imageURL string) (
 		return nil, fmt.Errorf("read image bytes: %w", err)
 	}
 
-	contentType := imgResp.Header.Get("Content-Type")
-	if contentType == "" {
-		contentType = "image/jpeg"
+	// Optimize image before sending to Gemini
+	compressedBytes, err := optimizeMangaImage(imgBytes, 1200)
+	if err != nil {
+		compressedBytes = imgBytes
 	}
-	base64Data := base64.StdEncoding.EncodeToString(imgBytes)
+
+	base64Data := base64.StdEncoding.EncodeToString(compressedBytes)
+	contentType := "image/jpeg"
+
 
 	prompt := `You are an expert Japanese manga translator. Analyze this manga page image and:
 1. Find ALL dialogue and text blocks in speech bubbles, thought bubbles, narrator boxes, and sound effects.
