@@ -1,7 +1,10 @@
 package config
 
 import (
+	"bufio"
+	"log"
 	"os"
+	"strings"
 )
 
 type Config struct {
@@ -14,6 +17,9 @@ type Config struct {
 }
 
 func Load() *Config {
+	loadDotEnv(".env")
+	loadDotEnv("../.env")
+
 	return &Config{
 		Port:            getEnv("PORT", "8080"),
 		DatabaseURL:     getEnv("DATABASE_URL", "postgres://mangamanman:mangamanman@localhost:5432/mangamanman?sslmode=disable"),
@@ -24,6 +30,31 @@ func Load() *Config {
 	}
 }
 
+func loadDotEnv(filepath string) {
+	file, err := os.Open(filepath)
+	if err != nil {
+		return
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) == 2 {
+			key := strings.TrimSpace(parts[0])
+			val := strings.TrimSpace(parts[1])
+			// Only set if not already set by system environment
+			if os.Getenv(key) == "" {
+				os.Setenv(key, val)
+			}
+		}
+	}
+	log.Printf("📄 Loaded environment variables from %s", filepath)
+}
 
 func getEnv(key, fallback string) string {
 	if val := os.Getenv(key); val != "" {
@@ -31,3 +62,4 @@ func getEnv(key, fallback string) string {
 	}
 	return fallback
 }
+
