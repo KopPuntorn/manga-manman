@@ -118,26 +118,42 @@ If no text is on the page, return {"texts": []}.`
 		return nil, fmt.Errorf("marshal gemini request: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", geminiURL, bytes.NewReader(jsonBody))
-	if err != nil {
-		return nil, fmt.Errorf("create gemini request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
+	var respBody []byte
 
-	resp, err := g.client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("do gemini request: %w", err)
-	}
-	defer resp.Body.Close()
+	// Retry up to 3 times on temporary 503 or 429 errors
+	for attempt := 0; attempt < 3; attempt++ {
 
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("read gemini response: %w", err)
-	}
+		req, err := http.NewRequestWithContext(ctx, "POST", geminiURL, bytes.NewReader(jsonBody))
+		if err != nil {
+			return nil, fmt.Errorf("create gemini request: %w", err)
+		}
+		req.Header.Set("Content-Type", "application/json")
 
-	if resp.StatusCode != http.StatusOK {
+		resp, err := g.client.Do(req)
+		if err != nil {
+			return nil, fmt.Errorf("do gemini request: %w", err)
+		}
+
+		respBody, err = io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			return nil, fmt.Errorf("read gemini response: %w", err)
+		}
+
+		if resp.StatusCode == http.StatusOK {
+			break
+		}
+
+
+		// If temporary high demand (503) or rate limit (429), sleep and retry
+		if (resp.StatusCode == http.StatusServiceUnavailable || resp.StatusCode == http.StatusTooManyRequests) && attempt < 2 {
+			time.Sleep(time.Duration(attempt+1) * 1500 * time.Millisecond)
+			continue
+		}
+
 		return nil, fmt.Errorf("gemini API returned %d: %s", resp.StatusCode, string(respBody))
 	}
+
 
 	var geminiResp struct {
 		Candidates []struct {
