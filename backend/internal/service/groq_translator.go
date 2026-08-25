@@ -3,18 +3,22 @@ package service
 import (
 	"bytes"
 	"context"
+
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"image"
+	"image/jpeg"
+	_ "image/png"
 	"io"
 	"net/http"
 	"strings"
 	"time"
 
+	"golang.org/x/image/draw"
+
 	"github.com/manga-manman/backend/internal/model"
 )
-
-
 
 const (
 	groqAPIURL = "https://api.groq.com/openai/v1/chat/completions"
@@ -62,12 +66,16 @@ func (g *GroqTranslator) TranslatePage(ctx context.Context, imageURL string) (*m
 		return nil, fmt.Errorf("read image bytes: %w", err)
 	}
 
-	contentType := imgResp.Header.Get("Content-Type")
-	if contentType == "" {
-		contentType = "image/jpeg"
+	// Optimize and compress image to reduce token usage from 6500+ down to ~800 tokens
+	compressedBytes, err := optimizeMangaImage(imgBytes, 1000)
+	if err != nil {
+		// Fallback to original bytes if compression fails
+		compressedBytes = imgBytes
 	}
-	base64Data := base64.StdEncoding.EncodeToString(imgBytes)
-	dataURI := fmt.Sprintf("data:%s;base64,%s", contentType, base64Data)
+
+	base64Data := base64.StdEncoding.EncodeToString(compressedBytes)
+	dataURI := fmt.Sprintf("data:image/jpeg;base64,%s", base64Data)
+
 
 	prompt := `You are a manga translation expert. Analyze this manga page image and:
 1. Find ALL text/dialogue in speech bubbles, thought bubbles, sound effects, and narration boxes
@@ -239,4 +247,40 @@ func extractJSON(s string) string {
 
 	return strings.TrimSpace(s)
 }
+
+// optimizeMangaImage decodes, downscales if width > maxWidth, and re-encodes as JPEG with quality 80
+func optimizeMangaImage(imgBytes []byte, maxWidth int) ([]byte, error) {
+	src, _, err := image.Decode(bytes.NewReader(imgBytes))
+	if err != nil {
+		return nil, fmt.Errorf("decode image: %w", err)
+	}
+
+	bounds := src.Bounds()
+	origW := bounds.Dx()
+	origH := bounds.Dy()
+
+	if origW <= maxWidth {
+		// Just re-encode to clean JPEG
+		var buf bytes.Buffer
+		if err := jpeg.Encode(&buf, src, &jpeg.Options{Quality: 80}); err != nil {
+			return nil, err
+		}
+		return buf.Bytes(), nil
+	}
+
+	// Calculate new proportional dimensions
+	newW := maxWidth
+	newH := int(float64(origH) * float64(maxWidth) / float64(origW))
+
+	dst := image.NewRGBA(image.Rect(0, 0, newW, newH))
+	draw.BiLinear.Scale(dst, dst.Bounds(), src, bounds, draw.Over, nil)
+
+	var buf bytes.Buffer
+	if err := jpeg.Encode(&buf, dst, &jpeg.Options{Quality: 80}); err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
+}
+
 
