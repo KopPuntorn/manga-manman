@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -12,11 +13,11 @@ import (
 	"github.com/manga-manman/backend/internal/model"
 )
 
+
 const (
 	groqAPIURL = "https://api.groq.com/openai/v1/chat/completions"
-	groqModel  = "llama-3.2-11b-vision-preview"
+	groqModel  = "qwen/qwen3.6-27b"
 )
-
 
 type GroqTranslator struct {
 	apiKey string
@@ -37,6 +38,35 @@ func (g *GroqTranslator) Provider() string {
 }
 
 func (g *GroqTranslator) TranslatePage(ctx context.Context, imageURL string) (*model.TranslationResult, error) {
+	// Download the image directly from MangaDex CDN with User-Agent
+	imgReq, err := http.NewRequestWithContext(ctx, "GET", imageURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("create image request: %w", err)
+	}
+	imgReq.Header.Set("User-Agent", "MangaManman/1.0")
+
+	imgResp, err := g.client.Do(imgReq)
+	if err != nil {
+		return nil, fmt.Errorf("download image: %w", err)
+	}
+	defer imgResp.Body.Close()
+
+	if imgResp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("download image failed with status %d", imgResp.StatusCode)
+	}
+
+	imgBytes, err := io.ReadAll(imgResp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read image bytes: %w", err)
+	}
+
+	contentType := imgResp.Header.Get("Content-Type")
+	if contentType == "" {
+		contentType = "image/jpeg"
+	}
+	base64Data := base64.StdEncoding.EncodeToString(imgBytes)
+	dataURI := fmt.Sprintf("data:%s;base64,%s", contentType, base64Data)
+
 	prompt := `You are a manga translation expert. Analyze this manga page image and:
 1. Find ALL text/dialogue in speech bubbles, thought bubbles, sound effects, and narration boxes
 2. Read the original text (usually Japanese)
@@ -78,7 +108,7 @@ Rules:
 					{
 						"type": "image_url",
 						"image_url": map[string]string{
-							"url": imageURL,
+							"url": dataURI,
 						},
 					},
 				},
@@ -108,6 +138,7 @@ Rules:
 	defer resp.Body.Close()
 
 	respBody, err := io.ReadAll(resp.Body)
+
 	if err != nil {
 		return nil, fmt.Errorf("read response: %w", err)
 	}
