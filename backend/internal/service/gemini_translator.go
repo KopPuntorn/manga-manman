@@ -8,18 +8,22 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sync/atomic"
 	"time"
 
 	"github.com/manga-manman/backend/internal/model"
 )
 
+
+
 type GeminiTranslator struct {
-	apiKey string
-	model  string
-	client *http.Client
+	apiKeys  []string
+	keyIndex uint64
+	model    string
+	client   *http.Client
 }
 
-func NewGeminiTranslator(apiKey string) *GeminiTranslator {
+func NewGeminiTranslator(apiKeys []string) *GeminiTranslator {
 	// Optimized HTTP client with connection pooling
 	transport := &http.Transport{
 		MaxIdleConns:        100,
@@ -29,14 +33,30 @@ func NewGeminiTranslator(apiKey string) *GeminiTranslator {
 	}
 
 	return &GeminiTranslator{
-		apiKey: apiKey,
-		model:  "gemini-3.1-flash-lite",
+		apiKeys:  apiKeys,
+		keyIndex: 0,
+		model:    "gemini-3.1-flash-lite",
 		client: &http.Client{
 			Transport: transport,
 			Timeout:   90 * time.Second,
 		},
 	}
 }
+
+func (g *GeminiTranslator) getKey(offset int) string {
+	if len(g.apiKeys) == 0 {
+		return ""
+	}
+	idx := (atomic.LoadUint64(&g.keyIndex) + uint64(offset)) % uint64(len(g.apiKeys))
+	return g.apiKeys[idx]
+}
+
+func (g *GeminiTranslator) advanceKey() {
+	if len(g.apiKeys) > 1 {
+		atomic.AddUint64(&g.keyIndex, 1)
+	}
+}
+
 
 
 func (g *GeminiTranslator) Provider() string {
@@ -105,8 +125,6 @@ Return ONLY valid JSON matching this schema:
 If the page contains no text, return {"texts": []}.`
 
 
-	geminiURL := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s", g.model, g.apiKey)
-
 	reqBody := map[string]interface{}{
 		"contents": []map[string]interface{}{
 			{
@@ -134,10 +152,13 @@ If the page contains no text, return {"texts": []}.`
 		return nil, fmt.Errorf("marshal gemini request: %w", err)
 	}
 
+
 	var respBody []byte
 
-	// Retry up to 4 times on temporary 503 or 429 rate limit errors
+	// Retry up to 4 times (cycling through API keys on 429/503)
 	for attempt := 0; attempt < 4; attempt++ {
+		currentKey := g.getKey(attempt)
+		geminiURL := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s", g.model, currentKey)
 
 		req, err := http.NewRequestWithContext(ctx, "POST", geminiURL, bytes.NewReader(jsonBody))
 		if err != nil {
@@ -157,14 +178,21 @@ If the page contains no text, return {"texts": []}.`
 		}
 
 		if resp.StatusCode == http.StatusOK {
+			g.advanceKey()
 			break
+		}
+
+		// If rate limited (429) and we have multiple keys, immediately advance to the next key without sleep!
+		if resp.StatusCode == http.StatusTooManyRequests && len(g.apiKeys) > 1 {
+			g.advanceKey()
+			continue
 		}
 
 		// If temporary high demand (503) or rate limit (429), sleep and retry with backoff
 		if (resp.StatusCode == http.StatusServiceUnavailable || resp.StatusCode == http.StatusTooManyRequests) && attempt < 3 {
-			sleepDuration := time.Duration(attempt+1) * 2500 * time.Millisecond
+			sleepDuration := time.Duration(attempt+1) * 2000 * time.Millisecond
 			if resp.StatusCode == http.StatusTooManyRequests {
-				sleepDuration = time.Duration(attempt+1) * 3500 * time.Millisecond
+				sleepDuration = time.Duration(attempt+1) * 3000 * time.Millisecond
 			}
 			time.Sleep(sleepDuration)
 			continue
@@ -172,6 +200,7 @@ If the page contains no text, return {"texts": []}.`
 
 		return nil, fmt.Errorf("gemini API returned %d: %s", resp.StatusCode, string(respBody))
 	}
+
 
 
 

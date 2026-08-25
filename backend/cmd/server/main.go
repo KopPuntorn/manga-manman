@@ -39,16 +39,18 @@ func main() {
 	var translator service.Translator
 	switch cfg.MangaTranslator {
 	case "gemini":
-		if cfg.GeminiAPIKey == "" {
+		if len(cfg.GeminiAPIKeys) == 0 {
 			log.Println("⚠️  GEMINI_API_KEY not set. Translation will fail until configured.")
+		} else {
+			log.Printf("🤖 Gemini Translator active with %d API Key(s) in Load Balancing pool", len(cfg.GeminiAPIKeys))
 		}
-		translator = service.NewGeminiTranslator(cfg.GeminiAPIKey)
+		translator = service.NewGeminiTranslator(cfg.GeminiAPIKeys)
 	case "groq":
 		fallthrough
 	default:
-		if cfg.GroqAPIKey == "" && cfg.GeminiAPIKey != "" {
-			log.Println("ℹ️ GROQ_API_KEY not set, using GEMINI_API_KEY as translator")
-			translator = service.NewGeminiTranslator(cfg.GeminiAPIKey)
+		if cfg.GroqAPIKey == "" && len(cfg.GeminiAPIKeys) > 0 {
+			log.Printf("ℹ️ GROQ_API_KEY not set, using Gemini Translator with %d API Key(s)", len(cfg.GeminiAPIKeys))
+			translator = service.NewGeminiTranslator(cfg.GeminiAPIKeys)
 		} else {
 			if cfg.GroqAPIKey == "" {
 				log.Println("⚠️  GROQ_API_KEY not set. Translation will fail until configured.")
@@ -56,6 +58,7 @@ func main() {
 			translator = service.NewGroqTranslator(cfg.GroqAPIKey)
 		}
 	}
+
 
 	// Initialize repositories
 	translationRepo := repository.NewTranslationRepository(pool)
