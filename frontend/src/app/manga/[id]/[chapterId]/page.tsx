@@ -413,18 +413,26 @@ export default function ReaderPage() {
     );
   }
 
-  if (error) {
+  if (error || (!loading && pages.length === 0)) {
     return (
-      <div style={{ maxWidth: '600px', margin: '80px auto', padding: '0 20px' }}>
-        <div className="error-message">{error}</div>
-        <div style={{ textAlign: 'center', marginTop: '16px' }}>
-          <Link href={`/manga/${mangaId}`} className="btn btn-primary">
-            ← กลับไปหน้ารายละเอียด
+      <div style={{ maxWidth: '600px', margin: '80px auto', padding: '0 20px', textAlign: 'center' }}>
+        <div className="error-message" style={{ marginBottom: '20px' }}>
+          {error || '⚠️ ตอนนี้เป็นลิงก์ภายนอกของ MangaPlus / สำนักพิมพ์ (ไม่มีไฟล์รูปภาพบน MangaDex)'}
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          <Link href={`/manga/${mangaId}`} className="btn btn-secondary">
+            ← กลับไปรายการตอน
           </Link>
+          {nextChapter && (
+            <Link href={`/manga/${mangaId}/${nextChapter.id}`} className="btn btn-primary">
+              ▶️ ข้ามไปอ่านตอนถัดไป (Ch. {nextChapter.chapter}) →
+            </Link>
+          )}
         </div>
       </div>
     );
   }
+
 
   return (
     <div className="reader-wrapper">

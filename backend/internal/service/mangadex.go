@@ -316,15 +316,12 @@ func (s *MangaDexService) GetChapterListWithOrder(mangaID string, limit, offset 
 
 		for _, ch := range rawChapters {
 			parsed := s.toChapter(ch)
-			// Deduplicate chapter entries with the same chapter number and language if duplicate
+			// Deduplicate chapter entries with the same chapter number and language
 			key := fmt.Sprintf("%s_%s", parsed.Chapter, parsed.Language)
-			if parsed.Chapter != "" && seenChapterNums[key] {
-				continue
-			}
-			if parsed.Chapter != "" {
+			if !seenChapterNums[key] {
 				seenChapterNums[key] = true
+				allChapters = append(allChapters, parsed)
 			}
-			allChapters = append(allChapters, parsed)
 		}
 
 		currentOffset += len(rawChapters)
@@ -348,6 +345,10 @@ func (s *MangaDexService) GetChapterPages(chapterID string) (*model.ChapterPages
 	var atHome mdAtHomeResponse
 	if err := json.Unmarshal(body, &atHome); err != nil {
 		return nil, fmt.Errorf("unmarshal at-home: %w", err)
+	}
+
+	if len(atHome.Chapter.Data) == 0 {
+		return nil, fmt.Errorf("ตอนนี้ไม่มีไฟล์รูปภาพบน MangaDex (เป็นลิงก์ภายนอกของ MangaPlus / สำนักพิมพ์)")
 	}
 
 	pages := make([]string, len(atHome.Chapter.Data))
