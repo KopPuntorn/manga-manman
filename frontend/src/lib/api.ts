@@ -120,6 +120,7 @@ export interface SearchFilterParams {
   tags?: string[];
   status?: string;
   sortBy?: 'relevance' | 'latest' | 'rating' | 'followedCount' | 'title';
+  contentRating?: string[];
   limit?: number;
   offset?: number;
 }
@@ -138,11 +139,15 @@ export async function searchMangaFiltered(filters: SearchFilterParams) {
   if (filters.tags && filters.tags.length > 0) params.set('tags', filters.tags.join(','));
   if (filters.status) params.set('status', filters.status);
   if (filters.sortBy) params.set('sortBy', filters.sortBy);
+  if (filters.contentRating && filters.contentRating.length > 0) {
+    params.set('contentRating', filters.contentRating.join(','));
+  }
 
   return fetchAPI<{ results: MangaSearchResult[]; total: number; limit: number; offset: number }>(
     `/api/manga/search?${params.toString()}`
   );
 }
+
 
 export async function getTags() {
   return fetchAPI<MangaTag[]>('/api/tags');

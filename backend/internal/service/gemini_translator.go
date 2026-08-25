@@ -30,7 +30,7 @@ func NewGeminiTranslator(apiKey string) *GeminiTranslator {
 
 	return &GeminiTranslator{
 		apiKey: apiKey,
-		model:  "gemini-3.6-flash",
+		model:  "gemini-3.1-flash-lite",
 		client: &http.Client{
 			Transport: transport,
 			Timeout:   90 * time.Second,

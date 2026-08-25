@@ -155,8 +155,8 @@ func (s *MangaDexService) SearchMangaFiltered(filters model.MangaSearchFilters) 
 		params.Add("contentRating[]", "safe")
 		params.Add("contentRating[]", "suggestive")
 		params.Add("contentRating[]", "erotica")
+		params.Add("contentRating[]", "pornographic")
 	}
-
 
 	reqURL := fmt.Sprintf("%s/manga?%s", mangadexBaseURL, params.Encode())
 	body, err := s.doGet(reqURL)
@@ -278,8 +278,10 @@ func (s *MangaDexService) GetChapterListWithOrder(mangaID string, limit, offset 
 		params.Add("contentRating[]", "safe")
 		params.Add("contentRating[]", "suggestive")
 		params.Add("contentRating[]", "erotica")
+		params.Add("contentRating[]", "pornographic")
 		params.Set("order[chapter]", order)
 		params.Add("includes[]", "scanlation_group")
+
 
 		reqURL := fmt.Sprintf("%s/manga/%s/feed?%s", mangadexBaseURL, mangaID, params.Encode())
 		body, err := s.doGet(reqURL)

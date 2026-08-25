@@ -7,6 +7,10 @@ import Link from 'next/link';
 // Curated full genre catalog with Thai labels & emojis
 const ALL_GENRES: { name: string; tagId: string; emoji: string }[] = [
   { name: 'ทั้งหมด (All)', tagId: '', emoji: '🔥' },
+  { name: '18+ ผู้ใหญ่ (Mature/18+)', tagId: 'erotica_mature', emoji: '🔞' },
+  { name: 'เอตจิ (Ecchi)', tagId: '9ab53f92-3eed-4e9b-903a-1e04e7525d19', emoji: '🔥' },
+  { name: 'เร่าร้อน (Smut)', tagId: 'faa39aa8-524d-4451-abda-9528669f30ce', emoji: '💋' },
+  { name: 'ฮาเร็ม (Harem)', tagId: 'cafaa103-9c3a-44e5-a580-91045785512e', emoji: '👥' },
   { name: 'แอ็กชัน (Action)', tagId: '391b0423-d847-456f-aff0-8b0cfc03066b', emoji: '⚔️' },
   { name: 'โรแมนติก (Romance)', tagId: '423e2eae-a7a2-4a8b-ac03-a8351462d71d', emoji: '💖' },
   { name: 'แฟนตาซี (Fantasy)', tagId: 'cdc58593-87dd-415e-bbc0-2ec27bf404cc', emoji: '🧙' },
@@ -33,6 +37,7 @@ export default function HomePage() {
   const [query, setQuery] = useState('');
   const [selectedTag, setSelectedTag] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('');
+  const [selectedRating, setSelectedRating] = useState<'all' | 'safe' | 'suggestive' | 'mature'>('all');
   const [sortBy, setSortBy] = useState<'followedCount' | 'latest' | 'rating' | 'relevance'>('followedCount');
 
   // Manga Results
@@ -45,12 +50,23 @@ export default function HomePage() {
   const [offset, setOffset] = useState(0);
   const PAGE_SIZE = 24;
 
+  // Resolve contentRating array based on selection
+  const getContentRatings = (rating: 'all' | 'safe' | 'suggestive' | 'mature', tag: string): string[] => {
+    if (tag === 'erotica_mature' || rating === 'mature') {
+      return ['erotica', 'pornographic', 'suggestive'];
+    }
+    if (rating === 'safe') return ['safe'];
+    if (rating === 'suggestive') return ['safe', 'suggestive'];
+    return ['safe', 'suggestive', 'erotica', 'pornographic'];
+  };
+
   // Execute Search / Filter Query
   const executeSearch = useCallback(
     async (
       q: string,
       tag: string,
       status: string,
+      rating: 'all' | 'safe' | 'suggestive' | 'mature',
       sort: 'followedCount' | 'latest' | 'rating' | 'relevance',
       isLoadMore = false,
       currentOffset = 0
@@ -63,10 +79,14 @@ export default function HomePage() {
       setError('');
 
       try {
+        const activeTag = tag === 'erotica_mature' ? undefined : (tag ? [tag] : undefined);
+        const activeRatings = getContentRatings(rating, tag);
+
         const data = await searchMangaFiltered({
           query: q.trim() || undefined,
-          tags: tag ? [tag] : undefined,
+          tags: activeTag,
           status: status || undefined,
+          contentRating: activeRatings,
           sortBy: sort,
           limit: PAGE_SIZE,
           offset: currentOffset,
@@ -76,7 +96,6 @@ export default function HomePage() {
           setResults((prev) => [...prev, ...data.results]);
         } else {
           setResults(data.results);
-          // Set top result as Spotlight banner if on initial popular view
           if (!q && !tag && data.results.length > 0 && currentOffset === 0) {
             setSpotlightManga(data.results[0]);
           }
@@ -93,44 +112,54 @@ export default function HomePage() {
     []
   );
 
-  // Initial load: Popular Manga
+  // Initial load: Popular Manga (All ratings)
   useEffect(() => {
-    executeSearch('', '', '', 'followedCount', false, 0);
+    executeSearch('', '', '', 'all', 'followedCount', false, 0);
   }, [executeSearch]);
 
   // Submit search form
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setOffset(0);
-    executeSearch(query, selectedTag, selectedStatus, query ? 'relevance' : sortBy, false, 0);
+    executeSearch(query, selectedTag, selectedStatus, selectedRating, query ? 'relevance' : sortBy, false, 0);
   };
 
   // Genre Tag Click
   const handleTagClick = (tagId: string) => {
     setSelectedTag(tagId);
     setOffset(0);
-    executeSearch(query, tagId, selectedStatus, sortBy, false, 0);
+    const newRating = tagId === 'erotica_mature' ? 'mature' : selectedRating;
+    if (tagId === 'erotica_mature') setSelectedRating('mature');
+    executeSearch(query, tagId, selectedStatus, newRating, sortBy, false, 0);
   };
 
   // Status Filter Change
   const handleStatusChange = (status: string) => {
     setSelectedStatus(status);
     setOffset(0);
-    executeSearch(query, selectedTag, status, sortBy, false, 0);
+    executeSearch(query, selectedTag, status, selectedRating, sortBy, false, 0);
+  };
+
+  // Content Rating Change
+  const handleRatingChange = (rating: 'all' | 'safe' | 'suggestive' | 'mature') => {
+    setSelectedRating(rating);
+    setOffset(0);
+    executeSearch(query, selectedTag, selectedStatus, rating, sortBy, false, 0);
   };
 
   // Sort Order Change
   const handleSortChange = (sort: 'followedCount' | 'latest' | 'rating' | 'relevance') => {
     setSortBy(sort);
     setOffset(0);
-    executeSearch(query, selectedTag, selectedStatus, sort, false, 0);
+    executeSearch(query, selectedTag, selectedStatus, selectedRating, sort, false, 0);
   };
 
   // Load More Next Page
   const handleLoadMore = () => {
     const nextOffset = offset + PAGE_SIZE;
-    executeSearch(query, selectedTag, selectedStatus, sortBy, true, nextOffset);
+    executeSearch(query, selectedTag, selectedStatus, selectedRating, sortBy, true, nextOffset);
   };
+
 
   return (
     <div>
@@ -269,6 +298,43 @@ export default function HomePage() {
             </select>
           </div>
         </div>
+
+        {/* Content Rating Filter Row */}
+        <div className="filter-row" style={{ marginTop: '12px', borderTop: '1px solid var(--border-color)', paddingTop: '12px' }}>
+          <span className="filter-label">ระดับเนื้อหา:</span>
+          <div className="pill-group">
+            <button
+              type="button"
+              className={`pill-item ${selectedRating === 'all' ? 'active' : ''}`}
+              onClick={() => handleRatingChange('all')}
+            >
+              🔥 รวมทุกเนื้อหา (All)
+            </button>
+            <button
+              type="button"
+              className={`pill-item ${selectedRating === 'safe' ? 'active' : ''}`}
+              onClick={() => handleRatingChange('safe')}
+            >
+              🌱 ทุกวัย (Safe)
+            </button>
+            <button
+              type="button"
+              className={`pill-item ${selectedRating === 'suggestive' ? 'active' : ''}`}
+              onClick={() => handleRatingChange('suggestive')}
+            >
+              ⚡ ทั่วไป (Suggestive)
+            </button>
+            <button
+              type="button"
+              className={`pill-item ${selectedRating === 'mature' ? 'active' : ''}`}
+              onClick={() => handleRatingChange('mature')}
+              style={{ color: selectedRating === 'mature' ? '#fff' : '#f87171' }}
+            >
+              🔞 18+ ผู้ใหญ่ (Mature & Erotica)
+            </button>
+          </div>
+        </div>
+
       </section>
 
       {/* Error Banner */}
