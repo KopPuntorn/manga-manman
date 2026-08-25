@@ -13,8 +13,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="th">
-      <body>
+    <html lang="th" suppressHydrationWarning data-scroll-behavior="smooth">
+      <body suppressHydrationWarning>
+
         <nav className="navbar">
           <div className="navbar-inner">
             <Link href="/" className="navbar-logo">
