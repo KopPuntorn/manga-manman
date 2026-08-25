@@ -22,12 +22,13 @@ type GeminiTranslator struct {
 func NewGeminiTranslator(apiKey string) *GeminiTranslator {
 	return &GeminiTranslator{
 		apiKey: apiKey,
-		model:  "gemini-2.5-flash",
+		model:  "gemini-3.6-flash",
 		client: &http.Client{
 			Timeout: 60 * time.Second,
 		},
 	}
 }
+
 
 
 func (g *GeminiTranslator) Provider() string {
