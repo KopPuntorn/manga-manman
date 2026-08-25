@@ -929,12 +929,13 @@ function TranslationOverlay({
       {texts.map((block, idx) => {
         const x = normalizePos(block.x);
         const y = normalizePos(block.y);
-        const w = normalizePos(block.width || 0.15);
-        const h = normalizePos(block.height || 0.08);
+        const w = Math.max(0.10, Math.min(0.55, normalizePos(block.width || 0.16)));
+        const h = Math.max(0.05, Math.min(0.45, normalizePos(block.height || 0.08)));
 
-        // Center anchor point inside the speech bubble
-        const centerXPercent = Math.min(90, Math.max(10, (x + w / 2) * 100));
-        const centerYPercent = Math.min(94, Math.max(6, (y + h / 2) * 100));
+        const leftPercent = x * 100;
+        const topPercent = y * 100;
+        const widthPercent = w * 100;
+        const minHeightPercent = h * 100;
 
         // Auto-scale font size dynamically based on Thai text length
         const textLen = (block.thai || '').length;
@@ -942,8 +943,8 @@ function TranslationOverlay({
         let lineHeightStyle = '1.30';
 
         if (size === 'sm') {
-          if (textLen > 40) fontSizeStyle = '0.62rem';
-          else if (textLen > 25) fontSizeStyle = '0.68rem';
+          if (textLen > 40) fontSizeStyle = '0.60rem';
+          else if (textLen > 25) fontSizeStyle = '0.66rem';
           else fontSizeStyle = '0.74rem';
         } else if (size === 'lg') {
           if (textLen > 40) fontSizeStyle = '0.82rem';
@@ -952,32 +953,34 @@ function TranslationOverlay({
         } else {
           // Default 'md'
           if (textLen > 45) {
-            fontSizeStyle = '0.68rem';
-            lineHeightStyle = '1.20';
+            fontSizeStyle = '0.66rem';
+            lineHeightStyle = '1.18';
           } else if (textLen > 30) {
-            fontSizeStyle = '0.74rem';
-            lineHeightStyle = '1.24';
+            fontSizeStyle = '0.72rem';
+            lineHeightStyle = '1.22';
           } else if (textLen > 18) {
-            fontSizeStyle = '0.80rem';
-            lineHeightStyle = '1.28';
+            fontSizeStyle = '0.78rem';
+            lineHeightStyle = '1.26';
           }
         }
+
+        // Oval balloon vs rectangular box detection based on aspect ratio
+        const isOvalBubble = widthPercent > 14 && minHeightPercent > 8;
 
         return (
           <div
             key={idx}
             className={`translation-bubble theme-${theme} size-${size} mode-${mode}`}
             style={{
-              left: `${centerXPercent}%`,
-              top: `${centerYPercent}%`,
-              transform: 'translate(-50%, -50%)',
-              width: 'auto',
-              minWidth: '40px',
-              maxWidth: 'min(240px, 46%)',
+              left: `${leftPercent}%`,
+              top: `${topPercent}%`,
+              width: `${widthPercent}%`,
+              minHeight: `${minHeightPercent}%`,
               height: 'auto',
+              borderRadius: isOvalBubble ? '20px' : '8px',
               fontSize: fontSizeStyle,
               lineHeight: lineHeightStyle,
-              padding: '4px 8px',
+              padding: '4px 6px',
             }}
             onClick={(e) => {
               e.stopPropagation();
@@ -1007,6 +1010,7 @@ function TranslationOverlay({
     </div>
   );
 }
+
 
 
 
