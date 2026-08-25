@@ -111,7 +111,7 @@ export default function ReaderPage() {
     fetchPages();
   }, [chapterId]);
 
-  // Webtoon Intersection observer for current page tracking
+  // Webtoon Intersection observer for current page tracking & predictive auto-translation
   useEffect(() => {
     if (readingMode !== 'webtoon' || pages.length === 0) return;
 
@@ -122,11 +122,15 @@ export default function ReaderPage() {
             const idx = Number(entry.target.getAttribute('data-page-index'));
             if (!isNaN(idx)) {
               setCurrentPage(idx);
+              // Predictive auto-translate: trigger translation for this page and next page immediately
+              if (translationMode !== 'off' && !translations[idx] && !translatingPages.has(idx)) {
+                translateSpecificPage(idx, false);
+              }
             }
           }
         });
       },
-      { threshold: 0.4 }
+      { rootMargin: '1000px 0px 1000px 0px', threshold: 0.1 }
     );
 
     pageRefs.current.forEach((ref) => {
@@ -134,7 +138,8 @@ export default function ReaderPage() {
     });
 
     return () => observerRef.current?.disconnect();
-  }, [pages, readingMode]);
+  }, [pages, readingMode, translationMode, translations, translatingPages, translateSpecificPage]);
+
 
   // Save reading history periodically
   useEffect(() => {
