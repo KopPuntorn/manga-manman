@@ -8,10 +8,12 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/manga-manman/backend/internal/model"
 )
+
 
 
 const (
@@ -114,6 +116,9 @@ Rules:
 				},
 			},
 		},
+		"response_format": map[string]string{
+			"type": "json_object",
+		},
 		"temperature": 0.1,
 		"max_tokens":  4096,
 	}
@@ -138,7 +143,6 @@ Rules:
 	defer resp.Body.Close()
 
 	respBody, err := io.ReadAll(resp.Body)
-
 	if err != nil {
 		return nil, fmt.Errorf("read response: %w", err)
 	}
@@ -165,12 +169,15 @@ Rules:
 
 	content := groqResp.Choices[0].Message.Content
 
-	// Try to extract JSON from the response (handle potential markdown wrapping)
-	content = extractJSON(content)
+	// Try to extract JSON from the response (handle potential markdown wrapping or reasoning)
+	extracted := extractJSON(content)
 
 	var result model.TranslationResult
-	if err := json.Unmarshal([]byte(content), &result); err != nil {
-		return nil, fmt.Errorf("unmarshal translation result: %w (content: %s)", err, content)
+	if err := json.Unmarshal([]byte(extracted), &result); err != nil {
+		// Fallback: try raw content directly
+		if err2 := json.Unmarshal([]byte(content), &result); err2 != nil {
+			return nil, fmt.Errorf("unmarshal translation result: %w (content: %s)", err, content)
+		}
 	}
 
 	return &result, nil
@@ -179,23 +186,41 @@ Rules:
 // extractJSON tries to find a JSON object in the response, stripping markdown code blocks if present
 func extractJSON(s string) string {
 	// Try to find JSON between ```json and ```
-	start := -1
-	end := -1
-
-	for i := 0; i < len(s)-6; i++ {
-		if s[i:i+7] == "```json" {
-			start = i + 7
-		} else if s[i:i+3] == "```" && start > 0 {
-			end = i
-			break
+	if idx := strings.Index(s, "```json"); idx != -1 {
+		start := idx + 7
+		if end := strings.Index(s[start:], "```"); end != -1 {
+			return strings.TrimSpace(s[start : start+end])
 		}
 	}
 
-	if start > 0 && end > start {
-		return s[start:end]
+	if idx := strings.Index(s, "```"); idx != -1 {
+		start := idx + 3
+		if end := strings.Index(s[start:], "```"); end != -1 {
+			return strings.TrimSpace(s[start : start+end])
+		}
 	}
 
-	// Try to find raw JSON object
+	// Try to find the outermost valid JSON object containing "texts"
+	textsIdx := strings.Index(s, `"texts"`)
+	if textsIdx != -1 {
+		// Look backwards for opening brace
+		startBrace := strings.LastIndex(s[:textsIdx], "{")
+		if startBrace != -1 {
+			braceCount := 0
+			for i := startBrace; i < len(s); i++ {
+				if s[i] == '{' {
+					braceCount++
+				} else if s[i] == '}' {
+					braceCount--
+					if braceCount == 0 {
+						return s[startBrace : i+1]
+					}
+				}
+			}
+		}
+	}
+
+	// Try to find any complete { ... } object
 	braceStart := -1
 	braceCount := 0
 	for i, c := range s {
@@ -212,5 +237,6 @@ func extractJSON(s string) string {
 		}
 	}
 
-	return s
+	return strings.TrimSpace(s)
 }
+
