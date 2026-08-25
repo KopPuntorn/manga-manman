@@ -98,28 +98,31 @@ func (g *GeminiTranslator) TranslatePage(ctx context.Context, imageURL string) (
 
 
 	prompt := `You are an expert manga OCR reader and Thai translator.
-Carefully examine this manga page image and detect ALL speech bubbles, thought clouds, narration boxes, and sound effects.
+Carefully examine this manga page image.
 
-For every single text bubble:
-1. Transcribe the original text.
-2. Translate naturally and accurately into Thai dialogue.
-3. Detect the exact bounding box using standard box_2d [ymin, xmin, ymax, xmax] normalized on a 0 to 1000 scale:
-   - ymin: top edge (0 to 1000)
-   - xmin: left edge (0 to 1000)
-   - ymax: bottom edge (0 to 1000)
-   - xmax: right edge (0 to 1000)
+STRICT INSTRUCTIONS:
+1. Detect ONLY dialogue, speech, and narration inside:
+   - Speech bubbles (dialogue, whispers, screams)
+   - Thought clouds (internal monologue)
+   - Rectangular narrator / caption boxes
+2. DO NOT detect or translate sound effects (SFX / onomatopoeia like ドン, バキ, ザー, BOOM, SLASH, THUD, etc.), background sound words, author credits, or chapter splash logos.
+3. For each dialogue / narration bubble:
+   - Transcribe the original dialogue text.
+   - Translate accurately and naturally into Thai conversational dialogue.
+   - Provide the precise bounding box using box_2d [ymin, xmin, ymax, xmax] (normalized on a 0 to 1000 scale) for that specific speech bubble.
 
 Return ONLY valid JSON matching this schema:
 {
   "texts": [
     {
-      "original": "original text",
-      "thai": "คำแปลภาษาไทย",
+      "original": "original dialogue",
+      "thai": "คำแปลภาษาไทยที่เป็นธรรมชาติ",
       "box_2d": [180, 240, 290, 360]
     }
   ]
 }
-If no text is found, return {"texts": []}.`
+If no dialogue bubbles exist on this page, return {"texts": []}.`
+
 
 
 
