@@ -97,32 +97,30 @@ func (g *GeminiTranslator) TranslatePage(ctx context.Context, imageURL string) (
 
 
 
-	prompt := `You are an expert Japanese manga OCR and Thai translator. Analyze this manga page carefully.
+	prompt := `You are an expert manga OCR reader and Thai translator.
+Carefully examine this manga page image and detect ALL speech bubbles, thought clouds, narration boxes, and sound effects.
 
-Instructions:
-1. Detect ALL text on this page: speech bubbles, thought clouds, narration boxes, side notes, floating monologue, and Japanese sound effects.
-2. Read the original text (Japanese/English).
-3. Translate each text block accurately and naturally into Thai dialogue.
-4. Provide precise normalized bounding box coordinates for each bubble as float values between 0.0 and 1.0:
-   - "x": left position (0.0 = left edge, 1.0 = right edge)
-   - "y": top position (0.0 = top edge, 1.0 = bottom edge)
-   - "width": width of bubble (usually 0.12 to 0.40)
-   - "height": height of bubble (usually 0.05 to 0.30)
+For every single text bubble:
+1. Transcribe the original text.
+2. Translate naturally and accurately into Thai dialogue.
+3. Detect the exact bounding box using standard box_2d [ymin, xmin, ymax, xmax] normalized on a 0 to 1000 scale:
+   - ymin: top edge (0 to 1000)
+   - xmin: left edge (0 to 1000)
+   - ymax: bottom edge (0 to 1000)
+   - xmax: right edge (0 to 1000)
 
 Return ONLY valid JSON matching this schema:
 {
   "texts": [
     {
       "original": "original text",
-      "thai": "คำแปลภาษาไทยที่ถูกต้องและเป็นธรรมชาติ",
-      "x": 0.35,
-      "y": 0.20,
-      "width": 0.22,
-      "height": 0.12
+      "thai": "คำแปลภาษาไทย",
+      "box_2d": [180, 240, 290, 360]
     }
   ]
 }
-If the page contains no text, return {"texts": []}.`
+If no text is found, return {"texts": []}.`
+
 
 
 	reqBody := map[string]interface{}{
@@ -225,70 +223,100 @@ If the page contains no text, return {"texts": []}.`
 	text := geminiResp.Candidates[0].Content.Parts[0].Text
 	text = extractJSON(text)
 
-	var result model.TranslationResult
-	if err := json.Unmarshal([]byte(text), &result); err != nil {
+	var rawResult struct {
+		Texts []struct {
+			Original string    `json:"original"`
+			Thai     string    `json:"thai"`
+			Box2D    []float64 `json:"box_2d"`
+			X        float64   `json:"x"`
+			Y        float64   `json:"y"`
+			Width    float64   `json:"width"`
+			Height   float64   `json:"height"`
+		} `json:"texts"`
+	}
+
+	if err := json.Unmarshal([]byte(text), &rawResult); err != nil {
 		return nil, fmt.Errorf("unmarshal translation result: %w (content: %s)", err, text)
 	}
 
-	// Normalize and sanitize coordinates (ensure 0.0 <= val <= 1.0)
-	for i := range result.Texts {
-		t := &result.Texts[i]
-		// If model returned on 0-1000 scale
-		if t.X > 10.0 {
-			if t.X > 100.0 {
-				t.X /= 1000.0
-			} else {
-				t.X /= 100.0
-			}
+	var result model.TranslationResult
+	for _, item := range rawResult.Texts {
+		tb := model.TextBlock{
+			Original: item.Original,
+			Thai:     item.Thai,
 		}
-		if t.Y > 10.0 {
-			if t.Y > 100.0 {
-				t.Y /= 1000.0
-			} else {
-				t.Y /= 100.0
+
+		if len(item.Box2D) == 4 {
+			ymin := item.Box2D[0]
+			xmin := item.Box2D[1]
+			ymax := item.Box2D[2]
+			xmax := item.Box2D[3]
+
+			// Convert box_2d 0-1000 to normalized 0.0-1.0
+			tb.Y = ymin / 1000.0
+			tb.X = xmin / 1000.0
+			tb.Height = (ymax - ymin) / 1000.0
+			tb.Width = (xmax - xmin) / 1000.0
+		} else {
+			tb.X = item.X
+			tb.Y = item.Y
+			tb.Width = item.Width
+			tb.Height = item.Height
+
+			// If scale is 0-100 or 0-1000
+			if tb.X > 10.0 {
+				if tb.X > 100.0 {
+					tb.X /= 1000.0
+				} else {
+					tb.X /= 100.0
+				}
 			}
-		}
-		if t.Width > 10.0 {
-			if t.Width > 100.0 {
-				t.Width /= 1000.0
-			} else {
-				t.Width /= 100.0
+			if tb.Y > 10.0 {
+				if tb.Y > 100.0 {
+					tb.Y /= 1000.0
+				} else {
+					tb.Y /= 100.0
+				}
 			}
-		}
-		if t.Height > 10.0 {
-			if t.Height > 100.0 {
-				t.Height /= 1000.0
-			} else {
-				t.Height /= 100.0
+			if tb.Width > 10.0 {
+				if tb.Width > 100.0 {
+					tb.Width /= 1000.0
+				} else {
+					tb.Width /= 100.0
+				}
+			}
+			if tb.Height > 10.0 {
+				if tb.Height > 100.0 {
+					tb.Height /= 1000.0
+				} else {
+					tb.Height /= 100.0
+				}
 			}
 		}
 
-		// Clamp bounds
-		if t.X < 0 {
-			t.X = 0
+		// Clamp bounds safely
+		if tb.X < 0 {
+			tb.X = 0
 		}
-		if t.X > 0.90 {
-			t.X = 0.85
+		if tb.X > 0.92 {
+			tb.X = 0.88
 		}
-		if t.Y < 0 {
-			t.Y = 0
+		if tb.Y < 0 {
+			tb.Y = 0
 		}
-		if t.Y > 0.95 {
-			t.Y = 0.90
+		if tb.Y > 0.95 {
+			tb.Y = 0.90
 		}
-		if t.Width < 0.08 {
-			t.Width = 0.18
+		if tb.Width < 0.10 {
+			tb.Width = 0.18
 		}
-		if t.Width > 0.70 {
-			t.Width = 0.50
+		if tb.Height < 0.04 {
+			tb.Height = 0.08
 		}
-		if t.Height < 0.04 {
-			t.Height = 0.08
-		}
-		if t.Height > 0.60 {
-			t.Height = 0.40
-		}
+
+		result.Texts = append(result.Texts, tb)
 	}
+
 
 	return &result, nil
 }

@@ -80,26 +80,53 @@ export default function ReaderPage() {
       .catch(console.error);
   }, [mangaId, chapterId]);
 
-  // Load chapter pages & cached translations
+  // Load chapter pages & cached translations with instant browser local storage
   useEffect(() => {
     if (!chapterId) return;
 
+    // 1. Instant cache load from browser storage (0ms)
+    try {
+      const localPages = localStorage.getItem(`manga_pages_${chapterId}`);
+      if (localPages) {
+        const parsed = JSON.parse(localPages);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setPages(parsed);
+          setLoading(false);
+        }
+      }
+      const localTrans = localStorage.getItem(`manga_trans_${chapterId}`);
+      if (localTrans) {
+        const parsed = JSON.parse(localTrans);
+        if (parsed && typeof parsed === 'object') {
+          setTranslations(parsed);
+        }
+      }
+    } catch {
+      // Ignore storage error
+    }
+
     const fetchPages = async () => {
-      setLoading(true);
-      setError('');
       try {
         const data = await getChapterPages(chapterId);
         setPages(data.pages);
-        setCurrentPage(0);
+        try {
+          localStorage.setItem(`manga_pages_${chapterId}`, JSON.stringify(data.pages));
+        } catch {}
 
-        // Load cached translations
+        // Load backend cached translations
         try {
           const cached = await getChapterTranslations(chapterId);
           const map: Record<number, Translation> = {};
           cached.forEach((t) => {
             map[t.pageIndex] = t;
           });
-          setTranslations(map);
+          setTranslations((prev) => {
+            const merged = { ...prev, ...map };
+            try {
+              localStorage.setItem(`manga_trans_${chapterId}`, JSON.stringify(merged));
+            } catch {}
+            return merged;
+          });
         } catch {
           // No cached translations yet
         }
@@ -112,6 +139,7 @@ export default function ReaderPage() {
 
     fetchPages();
   }, [chapterId]);
+
 
   // Translate a specific page
   const translateSpecificPage = useCallback(
