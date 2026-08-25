@@ -316,6 +316,10 @@ func (s *MangaDexService) GetChapterListWithOrder(mangaID string, limit, offset 
 
 		for _, ch := range rawChapters {
 			parsed := s.toChapter(ch)
+			// Skip external dummy chapters that have 0 pages (e.g. MangaPlus promo stubs)
+			if parsed.Pages <= 0 {
+				continue
+			}
 			// Deduplicate chapter entries with the same chapter number and language
 			key := fmt.Sprintf("%s_%s", parsed.Chapter, parsed.Language)
 			if !seenChapterNums[key] {
@@ -323,6 +327,7 @@ func (s *MangaDexService) GetChapterListWithOrder(mangaID string, limit, offset 
 				allChapters = append(allChapters, parsed)
 			}
 		}
+
 
 		currentOffset += len(rawChapters)
 		if currentOffset >= resp.Total {
