@@ -220,7 +220,8 @@ If no dialogue bubbles exist on this page, return {"texts": []}.`
 	}
 
 	if len(geminiResp.Candidates) == 0 || len(geminiResp.Candidates[0].Content.Parts) == 0 {
-		return nil, fmt.Errorf("empty response from gemini")
+		// Empty response from Gemini (e.g. textless page or non-speech panel)
+		return &model.TranslationResult{Texts: []model.TextBlock{}}, nil
 	}
 
 	text := geminiResp.Candidates[0].Content.Parts[0].Text
@@ -228,18 +229,19 @@ If no dialogue bubbles exist on this page, return {"texts": []}.`
 
 	var rawResult struct {
 		Texts []struct {
-			Original string    `json:"original"`
-			Thai     string    `json:"thai"`
-			Box2D    []float64 `json:"box_2d"`
-			X        float64   `json:"x"`
-			Y        float64   `json:"y"`
-			Width    float64   `json:"width"`
-			Height   float64   `json:"height"`
+			Original string      `json:"original"`
+			Thai     string      `json:"thai"`
+			Box2D    interface{} `json:"box_2d"`
+			X        float64     `json:"x"`
+			Y        float64     `json:"y"`
+			Width    float64     `json:"width"`
+			Height   float64     `json:"height"`
 		} `json:"texts"`
 	}
 
 	if err := json.Unmarshal([]byte(text), &rawResult); err != nil {
-		return nil, fmt.Errorf("unmarshal translation result: %w (content: %s)", err, text)
+		// If unmarshal fails on textless responses, return clean empty result
+		return &model.TranslationResult{Texts: []model.TextBlock{}}, nil
 	}
 
 	var result model.TranslationResult
@@ -249,12 +251,8 @@ If no dialogue bubbles exist on this page, return {"texts": []}.`
 			Thai:     item.Thai,
 		}
 
-		if len(item.Box2D) == 4 {
-			ymin := item.Box2D[0]
-			xmin := item.Box2D[1]
-			ymax := item.Box2D[2]
-			xmax := item.Box2D[3]
-
+		ymin, xmin, ymax, xmax, ok := parseBox2D(item.Box2D)
+		if ok {
 			// Convert box_2d 0-1000 to normalized 0.0-1.0
 			tb.Y = ymin / 1000.0
 			tb.X = xmin / 1000.0
@@ -297,6 +295,7 @@ If no dialogue bubbles exist on this page, return {"texts": []}.`
 			}
 		}
 
+
 		// Clamp bounds safely
 		if tb.X < 0 {
 			tb.X = 0
@@ -323,4 +322,46 @@ If no dialogue bubbles exist on this page, return {"texts": []}.`
 
 	return &result, nil
 }
+
+func parseBox2D(raw interface{}) (float64, float64, float64, float64, bool) {
+	if raw == nil {
+		return 0, 0, 0, 0, false
+	}
+	// Case 1: []interface{}
+	if slice, ok := raw.([]interface{}); ok {
+		if len(slice) == 4 {
+			// [ymin, xmin, ymax, xmax]
+			ymin := toFloat(slice[0])
+			xmin := toFloat(slice[1])
+			ymax := toFloat(slice[2])
+			xmax := toFloat(slice[3])
+			return ymin, xmin, ymax, xmax, true
+		} else if len(slice) > 0 {
+			// [[ymin, xmin, ymax, xmax]]
+			if innerSlice, ok := slice[0].([]interface{}); ok && len(innerSlice) == 4 {
+				ymin := toFloat(innerSlice[0])
+				xmin := toFloat(innerSlice[1])
+				ymax := toFloat(innerSlice[2])
+				xmax := toFloat(innerSlice[3])
+				return ymin, xmin, ymax, xmax, true
+			}
+		}
+	}
+	return 0, 0, 0, 0, false
+}
+
+func toFloat(val interface{}) float64 {
+	switch v := val.(type) {
+	case float64:
+		return v
+	case float32:
+		return float64(v)
+	case int:
+		return float64(v)
+	case int64:
+		return float64(v)
+	}
+	return 0
+}
+
 
