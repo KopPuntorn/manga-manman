@@ -19,9 +19,18 @@ func NewLibraryHandler(libraryRepo *repository.LibraryRepository, historyRepo *r
 	}
 }
 
-// GetLibrary handles GET /api/library
+// GetLibrary handles GET /api/library (with optional ?category= filter)
 func (h *LibraryHandler) GetLibrary(c *fiber.Ctx) error {
-	entries, err := h.libraryRepo.GetAll(c.Context())
+	category := c.Query("category")
+	var entries []model.LibraryEntry
+	var err error
+
+	if category != "" && category != "all" {
+		entries, err = h.libraryRepo.GetByCategory(c.Context(), category)
+	} else {
+		entries, err = h.libraryRepo.GetAll(c.Context())
+	}
+
 	if err != nil {
 		return c.Status(500).JSON(model.APIResponse{
 			Success: false,
@@ -66,6 +75,40 @@ func (h *LibraryHandler) AddToLibrary(c *fiber.Ctx) error {
 	})
 }
 
+// UpdateCategory handles PATCH /api/library/:mangaId/category
+func (h *LibraryHandler) UpdateCategory(c *fiber.Ctx) error {
+	mangaID := c.Params("mangaId")
+	if mangaID == "" {
+		return c.Status(400).JSON(model.APIResponse{
+			Success: false,
+			Error:   "mangaId is required",
+		})
+	}
+
+	var req model.UpdateCategoryRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(model.APIResponse{
+			Success: false,
+			Error:   "invalid request body",
+		})
+	}
+
+	if err := h.libraryRepo.UpdateCategory(c.Context(), mangaID, req.Category); err != nil {
+		return c.Status(500).JSON(model.APIResponse{
+			Success: false,
+			Error:   err.Error(),
+		})
+	}
+
+	return c.JSON(model.APIResponse{
+		Success: true,
+		Data: fiber.Map{
+			"mangaId":  mangaID,
+			"category": req.Category,
+		},
+	})
+}
+
 // RemoveFromLibrary handles DELETE /api/library/:mangaId
 func (h *LibraryHandler) RemoveFromLibrary(c *fiber.Ctx) error {
 	mangaID := c.Params("mangaId")
@@ -91,7 +134,7 @@ func (h *LibraryHandler) RemoveFromLibrary(c *fiber.Ctx) error {
 // CheckLibrary handles GET /api/library/:mangaId/check
 func (h *LibraryHandler) CheckLibrary(c *fiber.Ctx) error {
 	mangaID := c.Params("mangaId")
-	exists, err := h.libraryRepo.IsInLibrary(c.Context(), mangaID)
+	exists, category, err := h.libraryRepo.IsInLibrary(c.Context(), mangaID)
 	if err != nil {
 		return c.Status(500).JSON(model.APIResponse{
 			Success: false,
@@ -101,9 +144,13 @@ func (h *LibraryHandler) CheckLibrary(c *fiber.Ctx) error {
 
 	return c.JSON(model.APIResponse{
 		Success: true,
-		Data:    fiber.Map{"inLibrary": exists},
+		Data: fiber.Map{
+			"inLibrary": exists,
+			"category":  category,
+		},
 	})
 }
+
 
 // GetHistory handles GET /api/history/:mangaId
 func (h *LibraryHandler) GetHistory(c *fiber.Ctx) error {

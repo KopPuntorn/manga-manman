@@ -55,8 +55,10 @@ func Migrate(pool *pgxpool.Pool) error {
 			manga_id   VARCHAR(255) UNIQUE NOT NULL,
 			title      TEXT NOT NULL,
 			cover_url  TEXT,
+			category   VARCHAR(50) DEFAULT 'reading',
 			added_at   TIMESTAMP DEFAULT NOW()
 		)`,
+		`ALTER TABLE library ADD COLUMN IF NOT EXISTS category VARCHAR(50) DEFAULT 'reading'`,
 		`CREATE TABLE IF NOT EXISTS reading_history (
 			id           SERIAL PRIMARY KEY,
 			manga_id     VARCHAR(255) NOT NULL,
@@ -67,6 +69,7 @@ func Migrate(pool *pgxpool.Pool) error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_translations_chapter ON translations(chapter_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_history_manga ON reading_history(manga_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_library_category ON library(category)`,
 	}
 
 	for _, sql := range migrations {

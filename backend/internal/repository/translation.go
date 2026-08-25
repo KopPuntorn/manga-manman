@@ -82,3 +82,21 @@ func (r *TranslationRepository) Save(ctx context.Context, t *model.Translation) 
 	)
 	return err
 }
+
+func (r *TranslationRepository) UpdateResult(ctx context.Context, chapterID string, pageIndex int, result model.TranslationResult) error {
+	resultJSON, err := json.Marshal(result)
+	if err != nil {
+		return err
+	}
+
+	_, err = r.pool.Exec(ctx,
+		`INSERT INTO translations (chapter_id, page_index, result, provider)
+		 VALUES ($1, $2, $3, 'manual')
+		 ON CONFLICT (chapter_id, page_index) DO UPDATE 
+		 SET result = $3, provider = 'manual', created_at = NOW()`,
+		chapterID, pageIndex, resultJSON,
+	)
+	return err
+}
+
+

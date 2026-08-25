@@ -92,16 +92,69 @@ type mdAtHomeResponse struct {
 // --- Public Methods ---
 
 func (s *MangaDexService) SearchManga(query string, limit, offset int) ([]model.MangaSearchResult, int, error) {
+	return s.SearchMangaFiltered(model.MangaSearchFilters{
+		Query:  query,
+		Limit:  limit,
+		Offset: offset,
+	})
+}
+
+func (s *MangaDexService) SearchMangaFiltered(filters model.MangaSearchFilters) ([]model.MangaSearchResult, int, error) {
+	limit := filters.Limit
+	if limit <= 0 {
+		limit = 20
+	}
+	offset := filters.Offset
+	if offset < 0 {
+		offset = 0
+	}
+
 	params := url.Values{}
-	params.Set("title", query)
+	if filters.Query != "" {
+		params.Set("title", filters.Query)
+	}
 	params.Set("limit", fmt.Sprintf("%d", limit))
 	params.Set("offset", fmt.Sprintf("%d", offset))
 	params.Add("includes[]", "cover_art")
 	params.Add("includes[]", "author")
 	params.Add("includes[]", "artist")
-	params.Set("order[relevance]", "desc")
-	params.Add("contentRating[]", "safe")
-	params.Add("contentRating[]", "suggestive")
+
+	for _, tagID := range filters.Tags {
+		if tagID != "" {
+			params.Add("includedTags[]", tagID)
+		}
+	}
+
+	if filters.Status != "" {
+		params.Add("status[]", filters.Status)
+	}
+
+	// Sort order
+	switch filters.SortBy {
+	case "latest":
+		params.Set("order[latestUploadedChapter]", "desc")
+	case "rating":
+		params.Set("order[rating]", "desc")
+	case "followedCount":
+		params.Set("order[followedCount]", "desc")
+	case "title":
+		params.Set("order[title]", "asc")
+	default:
+		if filters.Query != "" {
+			params.Set("order[relevance]", "desc")
+		} else {
+			params.Set("order[followedCount]", "desc")
+		}
+	}
+
+	if len(filters.ContentRating) > 0 {
+		for _, cr := range filters.ContentRating {
+			params.Add("contentRating[]", cr)
+		}
+	} else {
+		params.Add("contentRating[]", "safe")
+		params.Add("contentRating[]", "suggestive")
+	}
 
 	reqURL := fmt.Sprintf("%s/manga?%s", mangadexBaseURL, params.Encode())
 	body, err := s.doGet(reqURL)
@@ -125,6 +178,43 @@ func (s *MangaDexService) SearchManga(query string, limit, offset int) ([]model.
 	}
 
 	return results, resp.Total, nil
+}
+
+func (s *MangaDexService) GetTags() ([]model.MangaTag, error) {
+	reqURL := fmt.Sprintf("%s/manga/tag", mangadexBaseURL)
+	body, err := s.doGet(reqURL)
+	if err != nil {
+		return nil, err
+	}
+
+	var resp struct {
+		Result string `json:"result"`
+		Data   []struct {
+			ID         string `json:"id"`
+			Attributes struct {
+				Name  map[string]string `json:"name"`
+				Group string            `json:"group"`
+			} `json:"attributes"`
+		} `json:"data"`
+	}
+
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return nil, fmt.Errorf("unmarshal tags: %w", err)
+	}
+
+	tags := make([]model.MangaTag, 0, len(resp.Data))
+	for _, item := range resp.Data {
+		name := extractLocalized(item.Attributes.Name, "en")
+		if name != "" {
+			tags = append(tags, model.MangaTag{
+				ID:    item.ID,
+				Name:  name,
+				Group: item.Attributes.Group,
+			})
+		}
+	}
+
+	return tags, nil
 }
 
 func (s *MangaDexService) GetMangaDetail(mangaID string) (*model.MangaDetail, error) {
@@ -152,12 +242,19 @@ func (s *MangaDexService) GetMangaDetail(mangaID string) (*model.MangaDetail, er
 }
 
 func (s *MangaDexService) GetChapterList(mangaID string, limit, offset int) ([]model.Chapter, int, error) {
+	return s.GetChapterListWithOrder(mangaID, limit, offset, "asc")
+}
+
+func (s *MangaDexService) GetChapterListWithOrder(mangaID string, limit, offset int, order string) ([]model.Chapter, int, error) {
+	if order != "desc" {
+		order = "asc"
+	}
 	params := url.Values{}
 	params.Set("limit", fmt.Sprintf("%d", limit))
 	params.Set("offset", fmt.Sprintf("%d", offset))
 	params.Add("translatedLanguage[]", "en")
 	params.Add("translatedLanguage[]", "ja")
-	params.Set("order[chapter]", "asc")
+	params.Set("order[chapter]", order)
 	params.Add("includes[]", "scanlation_group")
 
 	reqURL := fmt.Sprintf("%s/manga/%s/feed?%s", mangadexBaseURL, mangaID, params.Encode())
@@ -183,6 +280,7 @@ func (s *MangaDexService) GetChapterList(mangaID string, limit, offset int) ([]m
 
 	return results, resp.Total, nil
 }
+
 
 func (s *MangaDexService) GetChapterPages(chapterID string) (*model.ChapterPages, error) {
 	reqURL := fmt.Sprintf("%s/%s", atHomeBaseURL, chapterID)

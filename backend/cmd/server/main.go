@@ -38,14 +38,23 @@ func main() {
 	// Initialize translator based on config
 	var translator service.Translator
 	switch cfg.MangaTranslator {
-	case "groq":
-		if cfg.GroqAPIKey == "" {
-			log.Println("⚠️  GROQ_API_KEY not set. Translation will fail until configured.")
+	case "gemini":
+		if cfg.GeminiAPIKey == "" {
+			log.Println("⚠️  GEMINI_API_KEY not set. Translation will fail until configured.")
 		}
-		translator = service.NewGroqTranslator(cfg.GroqAPIKey)
+		translator = service.NewGeminiTranslator(cfg.GeminiAPIKey)
+	case "groq":
+		fallthrough
 	default:
-		log.Printf("⚠️  Unknown MANGA_TRANSLATOR '%s', defaulting to groq", cfg.MangaTranslator)
-		translator = service.NewGroqTranslator(cfg.GroqAPIKey)
+		if cfg.GroqAPIKey == "" && cfg.GeminiAPIKey != "" {
+			log.Println("ℹ️ GROQ_API_KEY not set, using GEMINI_API_KEY as translator")
+			translator = service.NewGeminiTranslator(cfg.GeminiAPIKey)
+		} else {
+			if cfg.GroqAPIKey == "" {
+				log.Println("⚠️  GROQ_API_KEY not set. Translation will fail until configured.")
+			}
+			translator = service.NewGroqTranslator(cfg.GroqAPIKey)
+		}
 	}
 
 	// Initialize repositories
@@ -75,15 +84,16 @@ func main() {
 
 	// Health check
 	app.Get("/health", func(c *fiber.Ctx) error {
-		return c.JSON(fiber.Map{"status": "ok", "service": "manga-manman-api"})
+		return c.JSON(fiber.Map{"status": "ok", "service": "manga-manman-api", "translator": translator.Provider()})
 	})
 
 	// API routes
 	api := app.Group("/api")
 
-	// Manga routes
+	// Manga & Tag routes
 	api.Get("/manga/search", mangaHandler.SearchManga)
 	api.Get("/manga/:id", mangaHandler.GetMangaDetail)
+	api.Get("/tags", mangaHandler.GetTags)
 
 	// Chapter routes
 	api.Get("/manga/:id/chapters", chapterHandler.GetChapters)
@@ -91,17 +101,20 @@ func main() {
 
 	// Translation routes
 	api.Post("/translate", translationHandler.TranslatePage)
+	api.Put("/translate/:chapterId/:pageIndex", translationHandler.UpdateTranslation)
 	api.Get("/translate/:chapterId", translationHandler.GetChapterTranslations)
 
 	// Library routes
 	api.Get("/library", libraryHandler.GetLibrary)
 	api.Post("/library", libraryHandler.AddToLibrary)
+	api.Patch("/library/:mangaId/category", libraryHandler.UpdateCategory)
 	api.Delete("/library/:mangaId", libraryHandler.RemoveFromLibrary)
 	api.Get("/library/:mangaId/check", libraryHandler.CheckLibrary)
 
 	// History routes
 	api.Get("/history/:mangaId", libraryHandler.GetHistory)
 	api.Put("/history", libraryHandler.UpdateHistory)
+
 
 	// Start server
 	addr := fmt.Sprintf(":%s", cfg.Port)

@@ -102,3 +102,41 @@ func (h *TranslationHandler) GetChapterTranslations(c *fiber.Ctx) error {
 		Data:    translations,
 	})
 }
+
+// UpdateTranslation handles PUT /api/translate/:chapterId/:pageIndex
+func (h *TranslationHandler) UpdateTranslation(c *fiber.Ctx) error {
+	chapterID := c.Params("chapterId")
+	pageIndex, err := c.ParamsInt("pageIndex")
+	if err != nil || chapterID == "" {
+		return c.Status(400).JSON(model.APIResponse{
+			Success: false,
+			Error:   "valid chapterId and pageIndex are required",
+		})
+	}
+
+	var req model.UpdateTranslationRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(model.APIResponse{
+			Success: false,
+			Error:   "invalid request body",
+		})
+	}
+
+	result := model.TranslationResult{Texts: req.Texts}
+	if err := h.repo.UpdateResult(c.Context(), chapterID, pageIndex, result); err != nil {
+		return c.Status(500).JSON(model.APIResponse{
+			Success: false,
+			Error:   err.Error(),
+		})
+	}
+
+	return c.JSON(model.APIResponse{
+		Success: true,
+		Data: fiber.Map{
+			"chapterId": chapterID,
+			"pageIndex": pageIndex,
+			"result":    result,
+		},
+	})
+}
+

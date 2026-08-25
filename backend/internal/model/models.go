@@ -16,35 +16,51 @@ type MangaSearchResult struct {
 	Tags        []string `json:"tags"`
 }
 
+type MangaTag struct {
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	Group string `json:"group"`
+}
+
+type MangaSearchFilters struct {
+	Query         string   `json:"query"`
+	Tags          []string `json:"tags,omitempty"`
+	Status        string   `json:"status,omitempty"`
+	SortBy        string   `json:"sortBy,omitempty"`        // relevance, latest, rating, followedCount
+	ContentRating []string `json:"contentRating,omitempty"` // safe, suggestive, erotica
+	Limit         int      `json:"limit"`
+	Offset        int      `json:"offset"`
+}
+
 type MangaDetail struct {
-	ID              string   `json:"id"`
-	Title           string   `json:"title"`
-	AltTitles       []string `json:"altTitles,omitempty"`
-	Description     string   `json:"description"`
-	CoverURL        string   `json:"coverUrl"`
-	Author          string   `json:"author"`
-	Artist          string   `json:"artist"`
-	Status          string   `json:"status"`
-	Year            int      `json:"year,omitempty"`
-	Tags            []string `json:"tags"`
-	ContentRating   string   `json:"contentRating"`
-	OriginalLanguage string  `json:"originalLanguage"`
+	ID               string   `json:"id"`
+	Title            string   `json:"title"`
+	AltTitles        []string `json:"altTitles,omitempty"`
+	Description      string   `json:"description"`
+	CoverURL         string   `json:"coverUrl"`
+	Author           string   `json:"author"`
+	Artist           string   `json:"artist"`
+	Status           string   `json:"status"`
+	Year             int      `json:"year,omitempty"`
+	Tags             []string `json:"tags"`
+	ContentRating    string   `json:"contentRating"`
+	OriginalLanguage string   `json:"originalLanguage"`
 }
 
 type Chapter struct {
-	ID          string  `json:"id"`
-	Chapter     string  `json:"chapter"`
-	Title       string  `json:"title"`
-	Volume      string  `json:"volume,omitempty"`
-	Pages       int     `json:"pages"`
-	Language    string  `json:"language"`
+	ID              string `json:"id"`
+	Chapter         string `json:"chapter"`
+	Title           string `json:"title"`
+	Volume          string `json:"volume,omitempty"`
+	Pages           int    `json:"pages"`
+	Language        string `json:"language"`
 	ScanlationGroup string `json:"scanlationGroup,omitempty"`
-	PublishedAt string  `json:"publishedAt"`
+	PublishedAt     string `json:"publishedAt"`
 }
 
 type ChapterPages struct {
-	ChapterID string   `json:"chapterId"`
-	Pages     []string `json:"pages"`
+	ChapterID  string   `json:"chapterId"`
+	Pages      []string `json:"pages"`
 	PagesSaver []string `json:"pagesSaver"`
 }
 
@@ -79,6 +95,10 @@ type TranslateRequest struct {
 	ImageURL  string `json:"imageUrl"`
 }
 
+type UpdateTranslationRequest struct {
+	Texts []TextBlock `json:"texts"`
+}
+
 // --- Library ---
 
 type LibraryEntry struct {
@@ -86,6 +106,7 @@ type LibraryEntry struct {
 	MangaID  string    `json:"mangaId"`
 	Title    string    `json:"title"`
 	CoverURL string    `json:"coverUrl"`
+	Category string    `json:"category"` // reading, plan_to_read, completed, dropped
 	AddedAt  time.Time `json:"addedAt"`
 }
 
@@ -93,6 +114,11 @@ type AddToLibraryRequest struct {
 	MangaID  string `json:"mangaId"`
 	Title    string `json:"title"`
 	CoverURL string `json:"coverUrl"`
+	Category string `json:"category,omitempty"`
+}
+
+type UpdateCategoryRequest struct {
+	Category string `json:"category"`
 }
 
 // --- Reading History ---
@@ -118,3 +144,4 @@ type APIResponse struct {
 	Data    interface{} `json:"data,omitempty"`
 	Error   string      `json:"error,omitempty"`
 }
+

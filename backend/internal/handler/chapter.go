@@ -16,7 +16,7 @@ func NewChapterHandler(mangadex *service.MangaDexService) *ChapterHandler {
 	return &ChapterHandler{mangadex: mangadex}
 }
 
-// GetChapters handles GET /api/manga/:id/chapters?limit=...&offset=...
+// GetChapters handles GET /api/manga/:id/chapters?limit=...&offset=...&order=...
 func (h *ChapterHandler) GetChapters(c *fiber.Ctx) error {
 	mangaID := c.Params("id")
 	if mangaID == "" {
@@ -28,12 +28,13 @@ func (h *ChapterHandler) GetChapters(c *fiber.Ctx) error {
 
 	limit, _ := strconv.Atoi(c.Query("limit", "100"))
 	offset, _ := strconv.Atoi(c.Query("offset", "0"))
+	order := c.Query("order", "asc")
 
 	if limit > 500 {
 		limit = 500
 	}
 
-	chapters, total, err := h.mangadex.GetChapterList(mangaID, limit, offset)
+	chapters, total, err := h.mangadex.GetChapterListWithOrder(mangaID, limit, offset, order)
 	if err != nil {
 		return c.Status(500).JSON(model.APIResponse{
 			Success: false,
@@ -51,6 +52,7 @@ func (h *ChapterHandler) GetChapters(c *fiber.Ctx) error {
 		},
 	})
 }
+
 
 // GetChapterPages handles GET /api/chapter/:id/pages
 func (h *ChapterHandler) GetChapterPages(c *fiber.Ctx) error {

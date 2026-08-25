@@ -7,6 +7,9 @@ frontend/.next/
 frontend/out/
 backend/tmp/
 backend/main
+backend/*.exe
+*.exe
+
 
 # Environment
 .env
