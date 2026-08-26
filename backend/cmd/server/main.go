@@ -86,6 +86,9 @@ func main() {
 	mw.SetupCORS(app, cfg.FrontendURL)
 
 	// Health check
+	app.Get("/", func(c *fiber.Ctx) error {
+		return c.JSON(fiber.Map{"status": "ok", "service": "manga-manman-api", "translator": translator.Provider()})
+	})
 	app.Get("/health", func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{"status": "ok", "service": "manga-manman-api", "translator": translator.Provider()})
 	})

@@ -19,20 +19,32 @@ func Connect(databaseURL string) (*pgxpool.Pool, error) {
 	config.MinConns = 2
 	config.MaxConnLifetime = 30 * time.Minute
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+	var pool *pgxpool.Pool
+	var lastErr error
 
-	pool, err := pgxpool.NewWithConfig(ctx, config)
-	if err != nil {
-		return nil, fmt.Errorf("create connection pool: %w", err)
+	// Retry connection up to 5 times with backoff
+	for attempt := 1; attempt <= 5; attempt++ {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		pool, err = pgxpool.NewWithConfig(ctx, config)
+		if err == nil {
+			if pingErr := pool.Ping(ctx); pingErr == nil {
+				cancel()
+				log.Println("✅ Connected to PostgreSQL")
+				return pool, nil
+			} else {
+				lastErr = pingErr
+				pool.Close()
+			}
+		} else {
+			lastErr = err
+		}
+		cancel()
+
+		log.Printf("⚠️ Database connection attempt %d/5 failed (%v), retrying in %ds...", attempt, lastErr, attempt*2)
+		time.Sleep(time.Duration(attempt*2) * time.Second)
 	}
 
-	if err := pool.Ping(ctx); err != nil {
-		return nil, fmt.Errorf("ping database: %w", err)
-	}
-
-	log.Println("✅ Connected to PostgreSQL")
-	return pool, nil
+	return nil, fmt.Errorf("failed to connect to database after 5 attempts: %w", lastErr)
 }
 
 func Migrate(pool *pgxpool.Pool) error {
