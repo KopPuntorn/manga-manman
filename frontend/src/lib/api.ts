@@ -1,4 +1,12 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+function getApiUrl(): string {
+  let url = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080').trim();
+  if (url && !url.startsWith('http://') && !url.startsWith('https://')) {
+    url = `https://${url}`;
+  }
+  return url.replace(/\/+$/, '');
+}
+
+const API_URL = getApiUrl();
 
 interface APIResponse<T> {
   success: boolean;
