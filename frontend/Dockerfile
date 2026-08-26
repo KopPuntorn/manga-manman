@@ -5,9 +5,16 @@ WORKDIR /app
 ARG NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 
-COPY package*.json ./
-RUN npm ci
+# Copy all files from context
 COPY . .
+
+# If building from repository root, move frontend files to working directory
+RUN if [ -f "frontend/package.json" ]; then \
+      cp -rf frontend/. . 2>/dev/null || true; \
+    fi
+
+# Install dependencies and build Next.js
+RUN npm install
 RUN npm run build
 
 # Runner stage
