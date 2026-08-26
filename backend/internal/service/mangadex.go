@@ -244,15 +244,22 @@ func (s *MangaDexService) GetMangaDetail(mangaID string) (*model.MangaDetail, er
 }
 
 func (s *MangaDexService) GetChapterList(mangaID string, limit, offset int) ([]model.Chapter, int, error) {
-	return s.GetChapterListWithOrder(mangaID, limit, offset, "asc")
+	return s.GetChapterListWithFilters(mangaID, limit, offset, "asc", nil)
 }
 
 func (s *MangaDexService) GetChapterListWithOrder(mangaID string, limit, offset int, order string) ([]model.Chapter, int, error) {
+	return s.GetChapterListWithFilters(mangaID, limit, offset, order, nil)
+}
+
+func (s *MangaDexService) GetChapterListWithFilters(mangaID string, limit, offset int, order string, languages []string) ([]model.Chapter, int, error) {
 	if order != "desc" {
 		order = "asc"
 	}
 	if limit <= 0 {
 		limit = 500
+	}
+	if len(languages) == 0 {
+		languages = []string{"en", "ja", "th"}
 	}
 
 	// MangaDex API allows max limit=100 per call. We paginate in batches of 100 up to requested limit.
@@ -272,9 +279,9 @@ func (s *MangaDexService) GetChapterListWithOrder(mangaID string, limit, offset 
 		params := url.Values{}
 		params.Set("limit", fmt.Sprintf("%d", batchLimit))
 		params.Set("offset", fmt.Sprintf("%d", currentOffset))
-		params.Add("translatedLanguage[]", "en")
-		params.Add("translatedLanguage[]", "ja")
-		params.Add("translatedLanguage[]", "th")
+		for _, lang := range languages {
+			params.Add("translatedLanguage[]", lang)
+		}
 		params.Add("contentRating[]", "safe")
 		params.Add("contentRating[]", "suggestive")
 		params.Add("contentRating[]", "erotica")

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"strconv"
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/manga-manman/backend/internal/model"
@@ -29,12 +30,22 @@ func (h *ChapterHandler) GetChapters(c *fiber.Ctx) error {
 	limit, _ := strconv.Atoi(c.Query("limit", "100"))
 	offset, _ := strconv.Atoi(c.Query("offset", "0"))
 	order := c.Query("order", "asc")
+	langQuery := c.Query("languages", c.Query("lang"))
+
+	var languages []string
+	if langQuery != "" {
+		for _, l := range strings.Split(langQuery, ",") {
+			if trimmed := strings.TrimSpace(l); trimmed != "" {
+				languages = append(languages, trimmed)
+			}
+		}
+	}
 
 	if limit > 500 {
 		limit = 500
 	}
 
-	chapters, total, err := h.mangadex.GetChapterListWithOrder(mangaID, limit, offset, order)
+	chapters, total, err := h.mangadex.GetChapterListWithFilters(mangaID, limit, offset, order, languages)
 	if err != nil {
 		return c.Status(500).JSON(model.APIResponse{
 			Success: false,

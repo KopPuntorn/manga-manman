@@ -29,6 +29,7 @@ func (r *LibraryRepository) GetAll(ctx context.Context) ([]model.LibraryEntry, e
 		if err := rows.Scan(&e.ID, &e.MangaID, &e.Title, &e.CoverURL, &e.Category, &e.AddedAt); err != nil {
 			return nil, err
 		}
+		e.Shelf = e.Category
 		entries = append(entries, e)
 	}
 
@@ -53,6 +54,7 @@ func (r *LibraryRepository) GetByCategory(ctx context.Context, category string) 
 		if err := rows.Scan(&e.ID, &e.MangaID, &e.Title, &e.CoverURL, &e.Category, &e.AddedAt); err != nil {
 			return nil, err
 		}
+		e.Shelf = e.Category
 		entries = append(entries, e)
 	}
 
@@ -63,9 +65,12 @@ func (r *LibraryRepository) GetByCategory(ctx context.Context, category string) 
 }
 
 func (r *LibraryRepository) Add(ctx context.Context, req model.AddToLibraryRequest) (*model.LibraryEntry, error) {
-	category := req.Category
-	if category == "" {
-		category = "reading"
+	shelf := req.Shelf
+	if shelf == "" {
+		shelf = req.Category
+	}
+	if shelf == "" {
+		shelf = "reading"
 	}
 
 	var entry model.LibraryEntry
@@ -74,11 +79,12 @@ func (r *LibraryRepository) Add(ctx context.Context, req model.AddToLibraryReque
 		 VALUES ($1, $2, $3, $4)
 		 ON CONFLICT (manga_id) DO UPDATE SET title = $2, cover_url = $3, category = COALESCE(NULLIF($4, ''), library.category)
 		 RETURNING id, manga_id, title, cover_url, category, added_at`,
-		req.MangaID, req.Title, req.CoverURL, category,
+		req.MangaID, req.Title, req.CoverURL, shelf,
 	).Scan(&entry.ID, &entry.MangaID, &entry.Title, &entry.CoverURL, &entry.Category, &entry.AddedAt)
 	if err != nil {
 		return nil, err
 	}
+	entry.Shelf = entry.Category
 	return &entry, nil
 }
 

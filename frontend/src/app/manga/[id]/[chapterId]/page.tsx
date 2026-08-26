@@ -16,9 +16,15 @@ import {
   Chapter,
   MangaDetail,
 } from '@/lib/api';
+import {
+  getOfflineChapter,
+  saveOfflineChapter,
+  isChapterOffline,
+} from '@/lib/offlineStorage';
 
 type ReadingMode = 'webtoon' | 'single' | 'double';
 type TranslationMode = 'thai' | 'sidebyside' | 'original' | 'off';
+type ThaiFontFamily = 'font-prompt' | 'font-kanit' | 'font-mali' | 'font-itim' | 'font-mitr' | 'font-baijamjuree';
 
 export default function ReaderPage() {
   const params = useParams();
@@ -41,9 +47,16 @@ export default function ReaderPage() {
   const [translationMode, setTranslationMode] = useState<TranslationMode>('thai');
   const [bubbleTheme, setBubbleTheme] = useState<'manga' | 'soft' | 'dark'>('manga');
   const [bubbleSize, setBubbleSize] = useState<'sm' | 'md' | 'lg'>('md');
+  const [fontFamily, setFontFamily] = useState<ThaiFontFamily>('font-prompt');
+  const [fontScale, setFontScale] = useState<number>(100); // 80 to 140%
+  const [bubbleOpacity, setBubbleOpacity] = useState<number>(100); // 60 to 100%
   const [showControls, setShowControls] = useState(true);
   const [showHelpModal, setShowHelpModal] = useState(false);
+  const [showSettingsDrawer, setShowSettingsDrawer] = useState(false);
 
+  // Offline Chapter State
+  const [isOfflineSaved, setIsOfflineSaved] = useState(false);
+  const [downloadingOffline, setDownloadingOffline] = useState(false);
 
   // Translation state
   const [translations, setTranslations] = useState<Record<number, Translation>>({});
@@ -67,6 +80,52 @@ export default function ReaderPage() {
   const pageRefs = useRef<(HTMLDivElement | null)[]>([]);
   const observerRef = useRef<IntersectionObserver | null>(null);
 
+  // Restore Reader Preferences from localStorage
+  useEffect(() => {
+    try {
+      const savedMode = localStorage.getItem('reader_mode') as ReadingMode;
+      if (savedMode) setReadingMode(savedMode);
+      const savedTransMode = localStorage.getItem('reader_trans_mode') as TranslationMode;
+      if (savedTransMode) setTranslationMode(savedTransMode);
+      const savedFont = localStorage.getItem('reader_font') as ThaiFontFamily;
+      if (savedFont) setFontFamily(savedFont);
+      const savedScale = localStorage.getItem('reader_font_scale');
+      if (savedScale) setFontScale(Number(savedScale));
+      const savedOpacity = localStorage.getItem('reader_bubble_opacity');
+      if (savedOpacity) setBubbleOpacity(Number(savedOpacity));
+      const savedTheme = localStorage.getItem('reader_bubble_theme') as 'manga' | 'soft' | 'dark';
+      if (savedTheme) setBubbleTheme(savedTheme);
+      const savedSize = localStorage.getItem('reader_bubble_size') as 'sm' | 'md' | 'lg';
+      if (savedSize) setBubbleSize(savedSize);
+    } catch {}
+  }, []);
+
+  // Save Preferences to localStorage
+  const handleFontChange = (f: ThaiFontFamily) => {
+    setFontFamily(f);
+    try { localStorage.setItem('reader_font', f); } catch {}
+  };
+
+  const handleFontScaleChange = (scale: number) => {
+    setFontScale(scale);
+    try { localStorage.setItem('reader_font_scale', scale.toString()); } catch {}
+  };
+
+  const handleBubbleOpacityChange = (op: number) => {
+    setBubbleOpacity(op);
+    try { localStorage.setItem('reader_bubble_opacity', op.toString()); } catch {}
+  };
+
+  const handleReadingModeChange = (mode: ReadingMode) => {
+    setReadingMode(mode);
+    try { localStorage.setItem('reader_mode', mode); } catch {}
+  };
+
+  const handleTranslationModeChange = (tmode: TranslationMode) => {
+    setTranslationMode(tmode);
+    try { localStorage.setItem('reader_trans_mode', tmode); } catch {}
+  };
+
   // Load Manga detail & Chapter list for navigation
   useEffect(() => {
     if (!mangaId) return;
@@ -80,11 +139,24 @@ export default function ReaderPage() {
       .catch(console.error);
   }, [mangaId, chapterId]);
 
-  // Load chapter pages & cached translations with instant browser local storage
+  // Load chapter pages & cached translations (IndexedDB -> LocalStorage -> Backend)
   useEffect(() => {
     if (!chapterId) return;
 
-    // 1. Instant cache load from browser storage (0ms)
+    // Check offline status
+    isChapterOffline(chapterId).then(setIsOfflineSaved).catch(() => {});
+
+    // 1. Instant check IndexedDB / LocalStorage (0ms)
+    getOfflineChapter(chapterId).then((offlineData) => {
+      if (offlineData && offlineData.pages.length > 0) {
+        setPages(offlineData.pages);
+        if (offlineData.translations) {
+          setTranslations(offlineData.translations);
+        }
+        setLoading(false);
+      }
+    });
+
     try {
       const localPages = localStorage.getItem(`manga_pages_${chapterId}`);
       if (localPages) {
@@ -101,9 +173,7 @@ export default function ReaderPage() {
           setTranslations(parsed);
         }
       }
-    } catch {
-      // Ignore storage error
-    }
+    } catch {}
 
     const fetchPages = async () => {
       try {
@@ -127,11 +197,12 @@ export default function ReaderPage() {
             } catch {}
             return merged;
           });
-        } catch {
-          // No cached translations yet
-        }
+        } catch {}
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load chapter');
+        // If we don't have offline pages and network failed
+        if (pages.length === 0) {
+          setError(err instanceof Error ? err.message : 'Failed to load chapter');
+        }
       } finally {
         setLoading(false);
       }
@@ -140,6 +211,17 @@ export default function ReaderPage() {
     fetchPages();
   }, [chapterId]);
 
+  // Phase 1: High-Performance Image Preloader for Adjacent Pages
+  useEffect(() => {
+    if (pages.length === 0) return;
+    const toPreload = [currentPage + 1, currentPage + 2, currentPage + 3, currentPage - 1];
+    toPreload.forEach((idx) => {
+      if (idx >= 0 && idx < pages.length && pages[idx]) {
+        const img = new Image();
+        img.src = pages[idx];
+      }
+    });
+  }, [currentPage, pages]);
 
   // Translate a specific page
   const translateSpecificPage = useCallback(
@@ -154,10 +236,13 @@ export default function ReaderPage() {
 
       try {
         const result = await translatePage(chapterId, pageIndex, pages[pageIndex]);
-        setTranslations((prev) => ({
-          ...prev,
-          [pageIndex]: result,
-        }));
+        setTranslations((prev) => {
+          const updated = { ...prev, [pageIndex]: result };
+          try {
+            localStorage.setItem(`manga_trans_${chapterId}`, JSON.stringify(updated));
+          } catch {}
+          return updated;
+        });
         setFailedPages((prev) => {
           const next = new Set(prev);
           next.delete(pageIndex);
@@ -178,7 +263,7 @@ export default function ReaderPage() {
     [chapterId, pages, translations, translatingPages, failedPages]
   );
 
-  // Webtoon Intersection observer for current page tracking & predictive auto-translation
+  // Webtoon Intersection observer for current page tracking
   useEffect(() => {
     if (readingMode !== 'webtoon' || pages.length === 0) return;
 
@@ -189,7 +274,6 @@ export default function ReaderPage() {
             const idx = Number(entry.target.getAttribute('data-page-index'));
             if (!isNaN(idx)) {
               setCurrentPage(idx);
-              // Predictive auto-translate: trigger translation for this page and next page immediately
               if (translationMode !== 'off' && !translations[idx] && !translatingPages.has(idx)) {
                 translateSpecificPage(idx, false);
               }
@@ -197,7 +281,7 @@ export default function ReaderPage() {
           }
         });
       },
-      { rootMargin: '1000px 0px 1000px 0px', threshold: 0.1 }
+      { rootMargin: '800px 0px 800px 0px', threshold: 0.1 }
     );
 
     pageRefs.current.forEach((ref) => {
@@ -218,7 +302,7 @@ export default function ReaderPage() {
     return () => clearTimeout(timer);
   }, [currentPage, mangaId, chapterId, pages.length]);
 
-  // Auto-translate current page if translation enabled
+  // Auto-translate current page
   useEffect(() => {
     if (
       translationMode !== 'off' &&
@@ -230,27 +314,38 @@ export default function ReaderPage() {
     }
   }, [currentPage, translationMode, pages.length, translations, failedPages, translateSpecificPage]);
 
-  // Intelligent Prefetching: Auto-translate next page ahead in background after user settles on current page
+  // Phase 1: Background Translation Queue for Upcoming Pages (N+1, N+2)
   useEffect(() => {
     if (translationMode === 'off' || pages.length === 0) return;
 
-    const prefetchTimer = setTimeout(() => {
-      const nextIdx = currentPage + 1;
+    const prefetchTimer = setTimeout(async () => {
+      // 1. Next Page N+1
+      const nextIdx1 = currentPage + 1;
       if (
-        nextIdx < pages.length &&
-        !translations[nextIdx] &&
-        !translatingPages.has(nextIdx) &&
-        !failedPages.has(nextIdx)
+        nextIdx1 < pages.length &&
+        !translations[nextIdx1] &&
+        !translatingPages.has(nextIdx1) &&
+        !failedPages.has(nextIdx1)
       ) {
-        translateSpecificPage(nextIdx, false);
+        await translateSpecificPage(nextIdx1, false);
       }
-    }, 1200);
+
+      // 2. Next Page N+2
+      const nextIdx2 = currentPage + 2;
+      if (
+        nextIdx2 < pages.length &&
+        !translations[nextIdx2] &&
+        !translatingPages.has(nextIdx2) &&
+        !failedPages.has(nextIdx2)
+      ) {
+        await translateSpecificPage(nextIdx2, false);
+      }
+    }, 1000);
 
     return () => clearTimeout(prefetchTimer);
   }, [currentPage, translationMode, pages.length, translations, failedPages, translatingPages, translateSpecificPage]);
 
   // Translate all pages of the chapter in parallel batches
-
   const translateAllPages = async () => {
     if (translatingAll || pages.length === 0) return;
     setTranslatingAll(true);
@@ -261,7 +356,6 @@ export default function ReaderPage() {
 
     setTranslateProgress({ current: pages.length - untranslatedIndices.length, total: pages.length });
 
-    // Process in gentle concurrent pools of 2
     const concurrency = 2;
     for (let i = 0; i < untranslatedIndices.length; i += concurrency) {
       const batch = untranslatedIndices.slice(i, i + concurrency);
@@ -270,16 +364,13 @@ export default function ReaderPage() {
           try {
             const res = await translatePage(chapterId, pageIdx, pages[pageIdx]);
             setTranslations((prev) => ({ ...prev, [pageIdx]: res }));
-          } catch {
-            // Handled individually
-          }
+          } catch {}
         })
       );
       setTranslateProgress((prev) => ({
         ...prev,
         current: Math.min(prev.total, prev.current + batch.length),
       }));
-      // Gentle pacing to avoid Free Tier 15 RPM quota spikes
       if (i + concurrency < untranslatedIndices.length) {
         await new Promise((r) => setTimeout(r, 800));
       }
@@ -287,9 +378,27 @@ export default function ReaderPage() {
     setTranslatingAll(false);
   };
 
-
-
-
+  // Phase 5: Download Chapter for Offline Reading
+  const handleSaveOffline = async () => {
+    if (pages.length === 0 || downloadingOffline) return;
+    setDownloadingOffline(true);
+    try {
+      await saveOfflineChapter(
+        chapterId,
+        mangaId,
+        manga?.title || 'Manga',
+        currentChapter?.chapter || '1',
+        pages,
+        translations
+      );
+      setIsOfflineSaved(true);
+      alert('✅ บันทึกตอนและคำแปลสำหรับอ่านออฟไลน์เรียบร้อยแล้ว!');
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'ไม่สามารถบันทึกออฟไลน์ได้');
+    } finally {
+      setDownloadingOffline(false);
+    }
+  };
 
   // Chapter Navigation
   const currentChapterIndex = chapterList.findIndex((c) => c.id === chapterId);
@@ -301,55 +410,76 @@ export default function ReaderPage() {
 
   const goToPrevPage = useCallback(() => {
     if (readingMode === 'double') {
-      setCurrentPage((p) => Math.max(0, p - 2));
+      if (currentPage > 1) {
+        setCurrentPage((prev) => prev - 2);
+      } else if (currentPage > 0) {
+        setCurrentPage(0);
+      } else if (prevChapter) {
+        router.push(`/manga/${mangaId}/${prevChapter.id}`);
+      }
     } else {
       if (currentPage > 0) {
-        setCurrentPage((p) => p - 1);
+        setCurrentPage((prev) => prev - 1);
+        if (readingMode === 'webtoon' && pageRefs.current[currentPage - 1]) {
+          pageRefs.current[currentPage - 1]?.scrollIntoView({ behavior: 'smooth' });
+        }
       } else if (prevChapter) {
         router.push(`/manga/${mangaId}/${prevChapter.id}`);
       }
     }
-  }, [readingMode, currentPage, prevChapter, router, mangaId]);
+  }, [currentPage, readingMode, prevChapter, mangaId, router]);
 
   const goToNextPage = useCallback(() => {
     if (readingMode === 'double') {
       if (currentPage + 2 < pages.length) {
-        setCurrentPage((p) => p + 2);
+        setCurrentPage((prev) => prev + 2);
       } else if (nextChapter) {
         router.push(`/manga/${mangaId}/${nextChapter.id}`);
       }
     } else {
       if (currentPage < pages.length - 1) {
-        setCurrentPage((p) => p + 1);
+        setCurrentPage((prev) => prev + 1);
+        if (readingMode === 'webtoon' && pageRefs.current[currentPage + 1]) {
+          pageRefs.current[currentPage + 1]?.scrollIntoView({ behavior: 'smooth' });
+        }
       } else if (nextChapter) {
         router.push(`/manga/${mangaId}/${nextChapter.id}`);
       }
     }
-  }, [readingMode, currentPage, pages.length, nextChapter, router, mangaId]);
+  }, [currentPage, pages.length, readingMode, nextChapter, mangaId, router]);
 
-  // Keyboard navigation
+  // Keyboard Shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't intercept when typing in modal textarea
-      if (editingBlock) return;
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        e.target instanceof HTMLSelectElement ||
+        editingBlock
+      ) {
+        return;
+      }
 
       if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
         goToNextPage();
       } else if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
         goToPrevPage();
       } else if (e.key === 't' || e.key === 'T') {
-        setTranslationMode((curr) => {
-          if (curr === 'thai') return 'sidebyside';
-          if (curr === 'sidebyside') return 'original';
-          if (curr === 'original') return 'off';
-          return 'thai';
-        });
+        handleTranslationModeChange(
+          translationMode === 'thai'
+            ? 'sidebyside'
+            : translationMode === 'sidebyside'
+            ? 'original'
+            : translationMode === 'original'
+            ? 'off'
+            : 'thai'
+        );
       } else if (e.key === 'm' || e.key === 'M') {
-        setReadingMode((curr) => {
-          if (curr === 'webtoon') return 'single';
-          if (curr === 'single') return 'double';
-          return 'webtoon';
-        });
+        handleReadingModeChange(
+          readingMode === 'webtoon' ? 'single' : readingMode === 'single' ? 'double' : 'webtoon'
+        );
+      } else if (e.key === 's' || e.key === 'S') {
+        setShowSettingsDrawer((prev) => !prev);
       } else if (e.key === 'f' || e.key === 'F') {
         if (!document.fullscreenElement) {
           document.documentElement.requestFullscreen().catch(() => {});
@@ -363,9 +493,7 @@ export default function ReaderPage() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [editingBlock, goToNextPage, goToPrevPage]);
-
-
+  }, [editingBlock, goToNextPage, goToPrevPage, translationMode, readingMode]);
 
   // Handle Edit Bubble
   const handleOpenEdit = (pageIdx: number, blockIdx: number, block: TextBlock) => {
@@ -389,13 +517,19 @@ export default function ReaderPage() {
 
       await updateTranslation(chapterId, pageIndex, updatedTexts);
 
-      setTranslations((prev) => ({
-        ...prev,
-        [pageIndex]: {
-          ...prev[pageIndex],
-          result: { texts: updatedTexts },
-        },
-      }));
+      setTranslations((prev) => {
+        const updated = {
+          ...prev,
+          [pageIndex]: {
+            ...prev[pageIndex],
+            result: { texts: updatedTexts },
+          },
+        };
+        try {
+          localStorage.setItem(`manga_trans_${chapterId}`, JSON.stringify(updated));
+        } catch {}
+        return updated;
+      });
       setEditingBlock(null);
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Save translation failed');
@@ -433,9 +567,8 @@ export default function ReaderPage() {
     );
   }
 
-
   return (
-    <div className="reader-wrapper">
+    <div className={`reader-wrapper ${fontFamily}`}>
       {/* Top Floating Control Bar */}
       <header className={`reader-top-bar ${showControls ? '' : 'hidden'}`}>
         <div className="reader-title-info">
@@ -446,11 +579,12 @@ export default function ReaderPage() {
             <div className="reader-manga-title">{manga?.title || 'Manga Reader'}</div>
             <div className="reader-chapter-title">
               {currentChapter ? `Ch. ${currentChapter.chapter} ${currentChapter.title ? `- ${currentChapter.title}` : ''}` : `ตอนที่อ่าน`}
+              {isOfflineSaved && <span className="badge-offline" style={{ marginLeft: '6px' }}>💾 ออฟไลน์</span>}
             </div>
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           {/* Chapter Quick Jump Selector */}
           {chapterList.length > 1 && (
             <select
@@ -477,21 +611,21 @@ export default function ReaderPage() {
           <div className="pill-group">
             <button
               className={`pill-item ${readingMode === 'webtoon' ? 'active' : ''}`}
-              onClick={() => setReadingMode('webtoon')}
+              onClick={() => handleReadingModeChange('webtoon')}
               title="Webtoon (เลื่อนยาว)"
             >
               📜 Webtoon
             </button>
             <button
               className={`pill-item ${readingMode === 'single' ? 'active' : ''}`}
-              onClick={() => setReadingMode('single')}
+              onClick={() => handleReadingModeChange('single')}
               title="ทีละหน้า (Single Page)"
             >
               📄 Single
             </button>
             <button
               className={`pill-item ${readingMode === 'double' ? 'active' : ''}`}
-              onClick={() => setReadingMode('double')}
+              onClick={() => handleReadingModeChange('double')}
               title="สองหน้าคู่ (Double Page)"
             >
               📖 Double
@@ -518,18 +652,27 @@ export default function ReaderPage() {
             )}
           </button>
 
+          {/* Settings Drawer Button */}
+          <button
+            className="btn btn-secondary btn-sm"
+            onClick={() => setShowSettingsDrawer(true)}
+            title="การตั้งค่าการอ่านและฟอนต์ (Settings - S)"
+          >
+            ⚙️
+          </button>
+
+          {/* Shortcuts Help Button */}
           <button
             className="btn btn-secondary btn-sm"
             onClick={() => setShowHelpModal(true)}
-            title="คีย์ลัด (Shortcuts)"
+            title="คีย์ลัด (Shortcuts - ?)"
           >
             ⌨️
           </button>
         </div>
       </header>
 
-
-      {/* Main Reader Content according to Reading Mode */}
+      {/* Main Reader Content */}
       {readingMode === 'webtoon' && (
         <div className="reader-webtoon">
           {pages.map((pageUrl, idx) => (
@@ -551,6 +694,9 @@ export default function ReaderPage() {
                     mode={translationMode}
                     theme={bubbleTheme}
                     size={bubbleSize}
+                    fontScale={fontScale}
+                    bubbleOpacity={bubbleOpacity}
+                    fontFamily={fontFamily}
                     onEditBlock={(blockIdx, block) => handleOpenEdit(idx, blockIdx, block)}
                   />
                 )}
@@ -611,6 +757,9 @@ export default function ReaderPage() {
                   mode={translationMode}
                   theme={bubbleTheme}
                   size={bubbleSize}
+                  fontScale={fontScale}
+                  bubbleOpacity={bubbleOpacity}
+                  fontFamily={fontFamily}
                   onEditBlock={(blockIdx, block) => handleOpenEdit(currentPage, blockIdx, block)}
                 />
               )}
@@ -636,7 +785,7 @@ export default function ReaderPage() {
             <div className="reader-nav-arrow">›</div>
           </div>
 
-          {/* Right Page (First in spread for Manga RTL reading) */}
+          {/* Right Page (First in spread for RTL manga) */}
           {currentPage + 1 < pages.length && (
             <div className="reader-page" style={{ flex: 1, maxWidth: '50%' }}>
               <div className="reader-image-container" style={{ position: 'relative', display: 'inline-block', maxWidth: '100%' }}>
@@ -647,6 +796,9 @@ export default function ReaderPage() {
                     mode={translationMode}
                     theme={bubbleTheme}
                     size={bubbleSize}
+                    fontScale={fontScale}
+                    bubbleOpacity={bubbleOpacity}
+                    fontFamily={fontFamily}
                     onEditBlock={(blockIdx, block) => handleOpenEdit(currentPage + 1, blockIdx, block)}
                   />
                 )}
@@ -664,6 +816,9 @@ export default function ReaderPage() {
                   mode={translationMode}
                   theme={bubbleTheme}
                   size={bubbleSize}
+                  fontScale={fontScale}
+                  bubbleOpacity={bubbleOpacity}
+                  fontFamily={fontFamily}
                   onEditBlock={(blockIdx, block) => handleOpenEdit(currentPage, blockIdx, block)}
                 />
               )}
@@ -671,8 +826,6 @@ export default function ReaderPage() {
           </div>
         </div>
       )}
-
-
 
       {/* Chapter end navigation footer */}
       <div style={{ textAlign: 'center', marginTop: '32px', display: 'flex', justifyContent: 'center', gap: '16px' }}>
@@ -690,7 +843,6 @@ export default function ReaderPage() {
 
       {/* Bottom Floating Control Dock */}
       <div className="reader-controls">
-        {/* Navigation buttons */}
         <button className="btn btn-secondary btn-sm" onClick={goToPrevPage} disabled={currentPage === 0 && !prevChapter}>
           ◀
         </button>
@@ -711,76 +863,42 @@ export default function ReaderPage() {
         <div className="pill-group" style={{ margin: '0 4px' }}>
           <button
             className={`pill-item ${translationMode === 'thai' ? 'active' : ''}`}
-            onClick={() => setTranslationMode('thai')}
-            title="แปลไทยอย่างเดียว"
+            onClick={() => handleTranslationModeChange('thai')}
+            title="แปลภาษาไทย (Translation)"
           >
-            🇹🇭 ไทย
+            🇹🇭 แปลไทย
           </button>
           <button
             className={`pill-item ${translationMode === 'sidebyside' ? 'active' : ''}`}
-            onClick={() => setTranslationMode('sidebyside')}
-            title="คู่ขนาน (ไทย + ญี่ปุ่น)"
+            onClick={() => handleTranslationModeChange('sidebyside')}
+            title="โหมดสองภาษา (Bilingual Text Mode: ไทย + ข้อความต้นฉบับ)"
           >
-            คู่ขนาน
+            🌐 โหมดสองภาษา
           </button>
           <button
             className={`pill-item ${translationMode === 'original' ? 'active' : ''}`}
-            onClick={() => setTranslationMode('original')}
-            title="ภาษาต้นฉบับ"
+            onClick={() => handleTranslationModeChange('original')}
+            title="หน้าต้นฉบับ (Original Page)"
           >
-            ต้นฉบับ
+            📄 หน้าต้นฉบับ
           </button>
           <button
             className={`pill-item ${translationMode === 'off' ? 'active' : ''}`}
-            onClick={() => setTranslationMode('off')}
-            title="ปิดการแปล"
+            onClick={() => handleTranslationModeChange('off')}
+            title="ปิดการแสดงคำแปล (Off)"
           >
-            ปิด
+            🚫 ปิดคำแปล
           </button>
         </div>
 
-        {/* Bubble Style & Font Size Controls */}
-        {translationMode !== 'off' && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', borderLeft: '1px solid rgba(255,255,255,0.15)', paddingLeft: '8px' }}>
-            {/* Bubble Theme Toggle */}
-            <button
-              className="btn btn-secondary btn-sm"
-              onClick={() => setBubbleTheme(bubbleTheme === 'manga' ? 'dark' : bubbleTheme === 'dark' ? 'soft' : 'manga')}
-              title={`ธีมกล่อง: ${bubbleTheme === 'manga' ? '⚪ มังงะสีขาว' : bubbleTheme === 'dark' ? '🌙 มืดโปร่ง' : '🌓 นวล'}`}
-              style={{ padding: '4px 8px', fontSize: '0.8rem' }}
-            >
-              {bubbleTheme === 'manga' ? '⚪ ขาว' : bubbleTheme === 'dark' ? '🌙 มืด' : '🌓 นวล'}
-            </button>
-
-            {/* Font Size Toggle */}
-            <div className="pill-group" style={{ margin: 0 }}>
-              <button
-                className={`pill-item ${bubbleSize === 'sm' ? 'active' : ''}`}
-                onClick={() => setBubbleSize('sm')}
-                title="ตัวหนังสือเล็ก"
-                style={{ padding: '3px 7px', fontSize: '0.72rem' }}
-              >
-                A-
-              </button>
-              <button
-                className={`pill-item ${bubbleSize === 'md' ? 'active' : ''}`}
-                onClick={() => setBubbleSize('md')}
-                title="ตัวหนังสือขนาดกลาง (แนะนำ)"
-                style={{ padding: '3px 7px', fontSize: '0.78rem' }}
-              >
-                A
-              </button>
-              <button
-                className={`pill-item ${bubbleSize === 'lg' ? 'active' : ''}`}
-                onClick={() => setBubbleSize('lg')}
-                title="ตัวหนังสือใหญ่"
-                style={{ padding: '3px 7px', fontSize: '0.86rem' }}
-              >
-                A+
-              </button>
-            </div>
-          </div>
-        )}
+        {/* Quick Settings Icon */}
+        <button
+          className="btn btn-secondary btn-sm"
+          onClick={() => setShowSettingsDrawer(true)}
+          title="ปรับแต่งฟอนต์และกล่องข้อความ (Text Block Settings)"
+        >
+          🎨
+        </button>
 
         {/* Translate current page trigger */}
         {translationMode !== 'off' && !translations[currentPage] && !translatingPages.has(currentPage) && (
@@ -788,7 +906,6 @@ export default function ReaderPage() {
             🌐 แปลหน้านี้
           </button>
         )}
-
 
         {translatingPages.has(currentPage) && (
           <span style={{ fontSize: '0.8rem', color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -805,12 +922,140 @@ export default function ReaderPage() {
         </div>
       )}
 
-      {/* Edit Translation Bubble Modal */}
+      {/* Phase 2: Reader Settings Drawer */}
+      {showSettingsDrawer && (
+        <div className="modal-overlay" onClick={() => setShowSettingsDrawer(false)}>
+          <div className="settings-drawer" onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>⚙️ การตั้งค่าผู้อ่าน (Reader Settings)</h3>
+              <button className="modal-close" onClick={() => setShowSettingsDrawer(false)}>
+                ✕
+              </button>
+            </div>
+
+            {/* Font Family Selection */}
+            <div className="settings-section">
+              <div className="settings-title">🔤 แบบฟอนต์ภาษาไทย (Thai Manga Font)</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                {[
+                  { id: 'font-prompt', name: 'Prompt (มาตรฐาน)', styleName: 'font-prompt' },
+                  { id: 'font-kanit', name: 'Kanit (คมชัด)', styleName: 'font-kanit' },
+                  { id: 'font-mali', name: 'Mali (การ์ตูนน่ารัก)', styleName: 'font-mali' },
+                  { id: 'font-itim', name: 'Itim (ลายมือชิคๆ)', styleName: 'font-itim' },
+                  { id: 'font-mitr', name: 'Mitr (สบายตา)', styleName: 'font-mitr' },
+                  { id: 'font-baijamjuree', name: 'Bai Jamjuree', styleName: 'font-baijamjuree' },
+                ].map((item) => (
+                  <button
+                    key={item.id}
+                    className={`btn btn-sm ${fontFamily === item.id ? 'btn-primary' : 'btn-secondary'} ${item.styleName}`}
+                    onClick={() => handleFontChange(item.id as ThaiFontFamily)}
+                    style={{ fontSize: '0.85rem', padding: '8px 6px', textAlign: 'center' }}
+                  >
+                    {item.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Font Scale Multiplier */}
+            <div className="settings-section">
+              <div className="settings-title">
+                📏 ขนาดตัวอักษร: {fontScale}%
+              </div>
+              <div className="slider-container">
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>80%</span>
+                <input
+                  type="range"
+                  min="80"
+                  max="140"
+                  step="5"
+                  value={fontScale}
+                  onChange={(e) => handleFontScaleChange(Number(e.target.value))}
+                  className="custom-slider"
+                />
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>140%</span>
+              </div>
+            </div>
+
+            {/* Text Block Theme */}
+            <div className="settings-section">
+              <div className="settings-title">🎨 ธีมกล่องข้อความ (Text Block Theme)</div>
+              <div className="pill-group" style={{ width: '100%', display: 'flex' }}>
+                <button
+                  className={`pill-item ${bubbleTheme === 'manga' ? 'active' : ''}`}
+                  onClick={() => { setBubbleTheme('manga'); try { localStorage.setItem('reader_bubble_theme', 'manga'); } catch {} }}
+                  style={{ flex: 1, textAlign: 'center' }}
+                >
+                  ⚪ ขาว (Manga)
+                </button>
+                <button
+                  className={`pill-item ${bubbleTheme === 'soft' ? 'active' : ''}`}
+                  onClick={() => { setBubbleTheme('soft'); try { localStorage.setItem('reader_bubble_theme', 'soft'); } catch {} }}
+                  style={{ flex: 1, textAlign: 'center' }}
+                >
+                  🌓 นวล (Soft)
+                </button>
+                <button
+                  className={`pill-item ${bubbleTheme === 'dark' ? 'active' : ''}`}
+                  onClick={() => { setBubbleTheme('dark'); try { localStorage.setItem('reader_bubble_theme', 'dark'); } catch {} }}
+                  style={{ flex: 1, textAlign: 'center' }}
+                >
+                  🌙 มืด (Dark)
+                </button>
+              </div>
+            </div>
+
+            {/* Text Block Opacity */}
+            <div className="settings-section">
+              <div className="settings-title">
+                👁️ ความทึบของกล่องข้อความ: {bubbleOpacity}%
+              </div>
+              <div className="slider-container">
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>60%</span>
+                <input
+                  type="range"
+                  min="60"
+                  max="100"
+                  step="5"
+                  value={bubbleOpacity}
+                  onChange={(e) => handleBubbleOpacityChange(Number(e.target.value))}
+                  className="custom-slider"
+                />
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>100%</span>
+              </div>
+            </div>
+
+            {/* Offline Chapter Download Section */}
+            <div className="settings-section" style={{ borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
+              <div className="settings-title">📱 บันทึกสำหรับอ่านออฟไลน์ (Offline)</div>
+              <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '10px' }}>
+                บันทึกรูปภาพและคำแปลทั้งตอนลงในเครื่อง เพื่อเปิดอ่านได้แม้ไม่มีอินเทอร์เน็ต
+              </p>
+              <button
+                className={`btn ${isOfflineSaved ? 'btn-secondary' : 'btn-primary'} btn-sm`}
+                onClick={handleSaveOffline}
+                disabled={downloadingOffline}
+                style={{ width: '100%' }}
+              >
+                {downloadingOffline ? '⏳ กำลังบันทึกออฟไลน์...' : isOfflineSaved ? '✅ ออฟไลน์แล้ว (บันทึกซ้ำ)' : '💾 ดาวน์โหลดเก็บไว้อ่านออฟไลน์'}
+              </button>
+            </div>
+
+            <div style={{ marginTop: 'auto', textAlign: 'center' }}>
+              <button className="btn btn-secondary btn-sm" onClick={() => setShowSettingsDrawer(false)} style={{ width: '100%' }}>
+                ปิดหน้าต่าง
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Translation Block Modal (Translation Correction) */}
       {editingBlock && (
         <div className="modal-overlay" onClick={() => setEditingBlock(null)}>
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>✏️ แก้ไขคำแปลภาษาไทย</h3>
+              <h3>✏️ แก้ไขคำแปล (Translation Correction)</h3>
               <button className="modal-close" onClick={() => setEditingBlock(null)}>
                 ✕
               </button>
@@ -818,7 +1063,7 @@ export default function ReaderPage() {
 
             <div style={{ marginBottom: '14px' }}>
               <label style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
-                ข้อความต้นฉบับ (Original):
+                ข้อความต้นฉบับ (Source Text):
               </label>
               <div
                 style={{
@@ -835,7 +1080,7 @@ export default function ReaderPage() {
 
             <div style={{ marginBottom: '20px' }}>
               <label style={{ fontSize: '0.78rem', color: 'var(--text-primary)', fontWeight: 600, display: 'block', marginBottom: '4px' }}>
-                คำแปลภาษาไทย (แก้ไขได้):
+                คำแปลภาษาไทย (Target Language - Thai):
               </label>
               <textarea
                 value={editThaiText}
@@ -860,7 +1105,7 @@ export default function ReaderPage() {
                 ยกเลิก
               </button>
               <button className="btn btn-primary" onClick={handleSaveEdit} disabled={savingEdit}>
-                {savingEdit ? 'กำลังบันทึก...' : '💾 บันทึกการแก้ไข'}
+                {savingEdit ? 'กำลังบันทึก...' : '💾 บันทึกคำแปล'}
               </button>
             </div>
           </div>
@@ -886,10 +1131,13 @@ export default function ReaderPage() {
               <span>หน้าก่อนหน้า (Previous Page)</span>
 
               <span className="shortcut-key">T</span>
-              <span>สลับโหมดการแปล (ไทย / คู่ขนาน / ต้นฉบับ / ปิด)</span>
+              <span>สลับโหมดการแปล (แปลไทย / โหมดสองภาษา / หน้าต้นฉบับ / ปิดคำแปล)</span>
 
               <span className="shortcut-key">M</span>
-              <span>เปลี่ยนโหมดการอ่าน (Webtoon / Single / Double)</span>
+              <span>เปลี่ยนโหมดการจัดหน้า (Webtoon / Single / Double Page)</span>
+
+              <span className="shortcut-key">S</span>
+              <span>เปิดการตั้งค่าฟอนต์และกล่องข้อความ (Settings)</span>
 
               <span className="shortcut-key">F</span>
               <span>เข้า/ออกจากโหมดเต็มจอ (Fullscreen)</span>
@@ -922,18 +1170,27 @@ function TranslationOverlay({
   mode,
   theme = 'manga',
   size = 'md',
+  fontScale = 100,
+  bubbleOpacity = 100,
+  fontFamily = 'font-prompt',
   onEditBlock,
 }: {
   texts: TextBlock[];
   mode: TranslationMode;
   theme?: 'manga' | 'soft' | 'dark';
   size?: 'sm' | 'md' | 'lg';
+  fontScale?: number;
+  bubbleOpacity?: number;
+  fontFamily?: ThaiFontFamily;
   onEditBlock: (index: number, block: TextBlock) => void;
 }) {
   if (!texts || texts.length === 0 || mode === 'off') return null;
 
+  const scaleFactor = (fontScale || 100) / 100;
+  const opacityFactor = (bubbleOpacity || 100) / 100;
+
   return (
-    <div className="translation-overlay">
+    <div className={`translation-overlay ${fontFamily}`}>
       {texts.map((block, idx) => {
         const x = normalizePos(block.x);
         const y = normalizePos(block.y);
@@ -945,34 +1202,33 @@ function TranslationOverlay({
         const widthPercent = w * 100;
         const minHeightPercent = h * 100;
 
-        // Auto-scale font size dynamically based on Thai text length
         const textLen = (block.thai || '').length;
-        let fontSizeStyle = '0.84rem';
+        let baseRem = 0.84;
         let lineHeightStyle = '1.30';
 
         if (size === 'sm') {
-          if (textLen > 40) fontSizeStyle = '0.60rem';
-          else if (textLen > 25) fontSizeStyle = '0.66rem';
-          else fontSizeStyle = '0.74rem';
+          if (textLen > 40) baseRem = 0.60;
+          else if (textLen > 25) baseRem = 0.66;
+          else baseRem = 0.74;
         } else if (size === 'lg') {
-          if (textLen > 40) fontSizeStyle = '0.82rem';
-          else if (textLen > 25) fontSizeStyle = '0.92rem';
-          else fontSizeStyle = '1.04rem';
+          if (textLen > 40) baseRem = 0.82;
+          else if (textLen > 25) baseRem = 0.92;
+          else baseRem = 1.04;
         } else {
           // Default 'md'
           if (textLen > 45) {
-            fontSizeStyle = '0.66rem';
+            baseRem = 0.66;
             lineHeightStyle = '1.18';
           } else if (textLen > 30) {
-            fontSizeStyle = '0.72rem';
+            baseRem = 0.72;
             lineHeightStyle = '1.22';
           } else if (textLen > 18) {
-            fontSizeStyle = '0.78rem';
+            baseRem = 0.78;
             lineHeightStyle = '1.26';
           }
         }
 
-        // Oval balloon vs rectangular box detection based on aspect ratio
+        const calculatedFontSize = `${(baseRem * scaleFactor).toFixed(2)}rem`;
         const isOvalBubble = widthPercent > 14 && minHeightPercent > 8;
 
         return (
@@ -986,9 +1242,10 @@ function TranslationOverlay({
               minHeight: `${minHeightPercent}%`,
               height: 'auto',
               borderRadius: isOvalBubble ? '20px' : '8px',
-              fontSize: fontSizeStyle,
+              fontSize: calculatedFontSize,
               lineHeight: lineHeightStyle,
               padding: '4px 6px',
+              opacity: opacityFactor,
             }}
             onClick={(e) => {
               e.stopPropagation();
@@ -1018,7 +1275,3 @@ function TranslationOverlay({
     </div>
   );
 }
-
-
-
-

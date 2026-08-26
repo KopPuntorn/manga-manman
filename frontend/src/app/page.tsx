@@ -4,9 +4,13 @@ import { useState, useEffect, useCallback } from 'react';
 import { searchMangaFiltered, MangaSearchResult, getTags, MangaTag } from '@/lib/api';
 import Link from 'next/link';
 
-// Curated full genre catalog with Thai labels & emojis
-const ALL_GENRES: { name: string; tagId: string; emoji: string }[] = [
+// Curated popular Manga tags with Thai labels & emojis
+const POPULAR_TAGS: { name: string; tagId: string; emoji: string }[] = [
   { name: 'ทั้งหมด (All)', tagId: '', emoji: '🔥' },
+  { name: 'โชเน็น (Shounen)', tagId: 'ddefd648-f22c-4ad0-8299-64fb810d0f4f', emoji: '⚡' },
+  { name: 'เซย์เน็น (Seinen)', tagId: 'b13b2a48-c720-44a9-9c77-39c9979373fb', emoji: '🗡️' },
+  { name: 'โชโจ (Shoujo)', tagId: 'a3c67850-4684-404e-9b9c-c1a7e6d4e645', emoji: '🌸' },
+  { name: 'โจเซย์ (Josei)', tagId: '423e2eae-a7a2-4a8b-ac03-a8351462d71d', emoji: '💄' },
   { name: '18+ ผู้ใหญ่ (Mature/18+)', tagId: 'erotica_mature', emoji: '🔞' },
   { name: 'เอตจิ (Ecchi)', tagId: '9ab53f92-3eed-4e9b-903a-1e04e7525d19', emoji: '🔥' },
   { name: 'เร่าร้อน (Smut)', tagId: 'faa39aa8-524d-4451-abda-9528669f30ce', emoji: '💋' },
@@ -113,8 +117,17 @@ export default function HomePage() {
     []
   );
 
-  // Initial load: Popular Manga (All ratings)
+  // Initial load: parse URL query or fetch Popular Manga
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlQuery = urlParams.get('q');
+      if (urlQuery) {
+        setQuery(urlQuery);
+        executeSearch(urlQuery, '', '', 'all', 'relevance', false, 0);
+        return;
+      }
+    }
     executeSearch('', '', '', 'all', 'followedCount', false, 0);
   }, [executeSearch]);
 
@@ -225,11 +238,11 @@ export default function HomePage() {
 
       {/* Filter & Comprehensive Genre Explorer Section */}
       <section className="filter-section" style={{ marginBottom: '32px' }}>
-        {/* Genre Chips */}
+        {/* Popular Tags */}
         <div className="filter-row" style={{ alignItems: 'flex-start' }}>
-          <span className="filter-label" style={{ paddingTop: '6px' }}>หมวดหมู่ ({ALL_GENRES.length}):</span>
+          <span className="filter-label" style={{ paddingTop: '6px' }}>แท็ก ({POPULAR_TAGS.length}):</span>
           <div className="filter-chips" style={{ flexWrap: 'wrap', gap: '8px' }}>
-            {ALL_GENRES.map((g) => (
+            {POPULAR_TAGS.map((g) => (
               <button
                 key={g.tagId}
                 type="button"
@@ -243,10 +256,10 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* Status & Sort Navigation Row */}
+        {/* Manga Status & Sort Navigation Row */}
         <div className="filter-row" style={{ justifyContent: 'space-between', marginTop: '16px', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-            <span className="filter-label">สถานะ:</span>
+            <span className="filter-label">สถานะมังงะ:</span>
             <div className="pill-group">
               <button
                 type="button"
@@ -351,13 +364,13 @@ export default function HomePage() {
         <div className="empty-state">
           <div className="empty-state-icon">🔍</div>
           <h3>ไม่พบมังงะตามเงื่อนไขที่ระบุ</h3>
-          <p>ลองปรับคำค้นหาหรือเลือกหมวดหมู่อื่นดูครับ</p>
+          <p>ลองปรับคำค้นหาหรือเลือกแท็กอื่นดูครับ</p>
         </div>
       ) : (
         <>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
             <h2 style={{ fontSize: '1.25rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span>{query ? `ผลการค้นหา "${query}"` : selectedTag ? `หมวดหมู่: ${ALL_GENRES.find((g) => g.tagId === selectedTag)?.name || ''}` : '🔥 รายการมังงะแนะนำ & ยอดนิยม'}</span>
+              <span>{query ? `ผลการค้นหา "${query}"` : selectedTag ? `แท็ก: ${POPULAR_TAGS.find((g) => g.tagId === selectedTag)?.name || ''}` : '🔥 รายการมังงะแนะนำ & ยอดนิยม'}</span>
             </h2>
             {total > 0 && (
               <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>

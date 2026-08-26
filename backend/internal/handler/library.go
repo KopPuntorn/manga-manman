@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"strconv"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/jackc/pgx/v5"
 	"github.com/manga-manman/backend/internal/model"
@@ -19,14 +21,17 @@ func NewLibraryHandler(libraryRepo *repository.LibraryRepository, historyRepo *r
 	}
 }
 
-// GetLibrary handles GET /api/library (with optional ?category= filter)
+// GetLibrary handles GET /api/library (with optional ?shelf= or ?category= filter)
 func (h *LibraryHandler) GetLibrary(c *fiber.Ctx) error {
-	category := c.Query("category")
+	shelf := c.Query("shelf")
+	if shelf == "" {
+		shelf = c.Query("category")
+	}
 	var entries []model.LibraryEntry
 	var err error
 
-	if category != "" && category != "all" {
-		entries, err = h.libraryRepo.GetByCategory(c.Context(), category)
+	if shelf != "" && shelf != "all" {
+		entries, err = h.libraryRepo.GetByCategory(c.Context(), shelf)
 	} else {
 		entries, err = h.libraryRepo.GetAll(c.Context())
 	}
@@ -75,7 +80,7 @@ func (h *LibraryHandler) AddToLibrary(c *fiber.Ctx) error {
 	})
 }
 
-// UpdateCategory handles PATCH /api/library/:mangaId/category
+// UpdateCategory handles PATCH /api/library/:mangaId/category (or /api/library/:mangaId/shelf)
 func (h *LibraryHandler) UpdateCategory(c *fiber.Ctx) error {
 	mangaID := c.Params("mangaId")
 	if mangaID == "" {
@@ -93,7 +98,12 @@ func (h *LibraryHandler) UpdateCategory(c *fiber.Ctx) error {
 		})
 	}
 
-	if err := h.libraryRepo.UpdateCategory(c.Context(), mangaID, req.Category); err != nil {
+	targetShelf := req.Shelf
+	if targetShelf == "" {
+		targetShelf = req.Category
+	}
+
+	if err := h.libraryRepo.UpdateCategory(c.Context(), mangaID, targetShelf); err != nil {
 		return c.Status(500).JSON(model.APIResponse{
 			Success: false,
 			Error:   err.Error(),
@@ -104,7 +114,8 @@ func (h *LibraryHandler) UpdateCategory(c *fiber.Ctx) error {
 		Success: true,
 		Data: fiber.Map{
 			"mangaId":  mangaID,
-			"category": req.Category,
+			"shelf":    targetShelf,
+			"category": targetShelf,
 		},
 	})
 }
@@ -146,6 +157,7 @@ func (h *LibraryHandler) CheckLibrary(c *fiber.Ctx) error {
 		Success: true,
 		Data: fiber.Map{
 			"inLibrary": exists,
+			"shelf":     category,
 			"category":  category,
 		},
 	})
@@ -163,6 +175,23 @@ func (h *LibraryHandler) GetHistory(c *fiber.Ctx) error {
 	}
 
 	history, err := h.historyRepo.GetByManga(c.Context(), mangaID)
+	if err != nil && err != pgx.ErrNoRows {
+		return c.Status(500).JSON(model.APIResponse{
+			Success: false,
+			Error:   err.Error(),
+		})
+	}
+
+	return c.JSON(model.APIResponse{
+		Success: true,
+		Data:    history,
+	})
+}
+
+// GetAllHistory handles GET /api/history
+func (h *LibraryHandler) GetAllHistory(c *fiber.Ctx) error {
+	limit, _ := strconv.Atoi(c.Query("limit", "50"))
+	history, err := h.historyRepo.GetAll(c.Context(), limit)
 	if err != nil && err != pgx.ErrNoRows {
 		return c.Status(500).JSON(model.APIResponse{
 			Success: false,
@@ -204,3 +233,20 @@ func (h *LibraryHandler) UpdateHistory(c *fiber.Ctx) error {
 		Success: true,
 	})
 }
+
+// GetReadingStats handles GET /api/stats
+func (h *LibraryHandler) GetReadingStats(c *fiber.Ctx) error {
+	stats, err := h.historyRepo.GetStats(c.Context())
+	if err != nil {
+		return c.Status(500).JSON(model.APIResponse{
+			Success: false,
+			Error:   err.Error(),
+		})
+	}
+
+	return c.JSON(model.APIResponse{
+		Success: true,
+		Data:    stats,
+	})
+}
+

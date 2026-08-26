@@ -1,0 +1,16 @@
+{
+  "name": "Manga Manman — อ่านมังงะแปลไทย AI",
+  "short_name": "MangaManman",
+  "description": "เว็บอ่านมังงะส่วนตัว ดึงจาก MangaDex พร้อมแปลไทยอัตโนมัติด้วย AI",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#090d16",
+  "theme_color": "#f59e0b",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    }
+  ]
+}

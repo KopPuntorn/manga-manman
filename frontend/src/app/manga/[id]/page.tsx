@@ -8,13 +8,16 @@ import {
   getChapters,
   addToLibrary,
   removeFromLibrary,
-  updateLibraryCategory,
+  updateLibraryShelf,
   checkLibrary,
-  getHistory,
+  getReadingProgress,
   MangaDetail,
   Chapter,
-  ReadingHistory,
+  LibraryShelf,
+  ReadingProgress,
 } from '@/lib/api';
+
+type LangFilter = 'all' | 'en' | 'ja' | 'th';
 
 export default function MangaDetailPage() {
   const params = useParams();
@@ -24,9 +27,10 @@ export default function MangaDetailPage() {
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [totalChapters, setTotalChapters] = useState(0);
   const [inLibrary, setInLibrary] = useState(false);
-  const [libraryCategory, setLibraryCategory] = useState('reading');
-  const [history, setHistory] = useState<ReadingHistory[]>([]);
+  const [libraryShelf, setLibraryShelf] = useState<LibraryShelf>('reading');
+  const [progressList, setProgressList] = useState<ReadingProgress[]>([]);
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [selectedLang, setSelectedLang] = useState<LangFilter>('all');
   const [chapterSearch, setChapterSearch] = useState('');
 
   const [loading, setLoading] = useState(true);
@@ -39,18 +43,20 @@ export default function MangaDetailPage() {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const [detail, chaptersData, libraryCheck, historyData] = await Promise.all([
+        const langParam = selectedLang === 'all' ? ['en', 'ja', 'th'] : [selectedLang];
+        const [detail, chaptersData, libraryCheck, progressData] = await Promise.all([
           getMangaDetail(mangaId),
-          getChapters(mangaId, 500, 0, sortOrder),
-          checkLibrary(mangaId).catch(() => ({ inLibrary: false, category: 'reading' })),
-          getHistory(mangaId).catch(() => []),
+          getChapters(mangaId, 500, 0, sortOrder, langParam),
+          checkLibrary(mangaId).catch(() => ({ inLibrary: false, shelf: 'reading' as LibraryShelf, category: 'reading' as LibraryShelf })),
+          getReadingProgress(mangaId).catch(() => []),
         ]);
         setManga(detail);
         setChapters(chaptersData.chapters);
         setTotalChapters(chaptersData.total);
         setInLibrary(libraryCheck.inLibrary);
-        if (libraryCheck.category) setLibraryCategory(libraryCheck.category);
-        setHistory(historyData);
+        const resolvedShelf = libraryCheck.shelf || libraryCheck.category;
+        if (resolvedShelf) setLibraryShelf(resolvedShelf);
+        setProgressList(progressData);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load manga');
       } finally {
@@ -60,7 +66,7 @@ export default function MangaDetailPage() {
     };
 
     fetchData();
-  }, [mangaId, sortOrder]);
+  }, [mangaId, sortOrder, selectedLang]);
 
   const handleToggleLibrary = async () => {
     if (!manga) return;
@@ -69,7 +75,7 @@ export default function MangaDetailPage() {
         await removeFromLibrary(mangaId);
         setInLibrary(false);
       } else {
-        await addToLibrary(mangaId, manga.title, manga.coverUrl, libraryCategory);
+        await addToLibrary(mangaId, manga.title, manga.coverUrl, libraryShelf);
         setInLibrary(true);
       }
     } catch (err) {
@@ -77,28 +83,28 @@ export default function MangaDetailPage() {
     }
   };
 
-  const handleCategoryChange = async (newCategory: string) => {
-    setLibraryCategory(newCategory);
+  const handleShelfChange = async (newShelf: LibraryShelf) => {
+    setLibraryShelf(newShelf);
     if (inLibrary) {
       try {
-        await updateLibraryCategory(mangaId, newCategory);
+        await updateLibraryShelf(mangaId, newShelf);
       } catch (err) {
-        console.error('Update category failed:', err);
+        console.error('Update shelf failed:', err);
       }
     }
   };
 
   // Find latest read chapter for Continue Reading
   const lastReadInfo = useMemo(() => {
-    if (!history || history.length === 0 || chapters.length === 0) return null;
-    const latest = history[0]; // Assuming history contains most recent
+    if (!progressList || progressList.length === 0 || chapters.length === 0) return null;
+    const latest = progressList[0];
     const chapter = chapters.find((c) => c.id === latest.chapterId);
     return {
       chapterId: latest.chapterId,
       chapterNumber: chapter?.chapter || '?',
       pageIndex: latest.pageIndex,
     };
-  }, [history, chapters]);
+  }, [progressList, chapters]);
 
   // Filtered chapters
   const filteredChapters = useMemo(() => {
@@ -163,16 +169,24 @@ export default function MangaDetailPage() {
         <div className="manga-detail-info">
           <h1>{manga.title}</h1>
 
-          <div className="manga-detail-meta">
-            {manga.author && <span>✍️ {manga.author}</span>}
-            {manga.artist && manga.artist !== manga.author && <span>🎨 {manga.artist}</span>}
-            {manga.status && <span>📊 {manga.status}</span>}
-            {manga.year && <span>📅 {manga.year}</span>}
-            {manga.originalLanguage && <span>🌐 {manga.originalLanguage.toUpperCase()}</span>}
+          <div className="manga-detail-meta" style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
+            {manga.author && (
+              <Link href={`/?q=${encodeURIComponent(manga.author)}`} title="ค้นหาผลงานของผู้แต่งนี้ (Author)">
+                <span className="tag" style={{ cursor: 'pointer' }}>✍️ ผู้แต่ง: {manga.author}</span>
+              </Link>
+            )}
+            {manga.artist && manga.artist !== manga.author && (
+              <Link href={`/?q=${encodeURIComponent(manga.artist)}`} title="ค้นหาผลงานของผู้วาดนี้ (Artist)">
+                <span className="tag" style={{ cursor: 'pointer' }}>🎨 ผู้วาด: {manga.artist}</span>
+              </Link>
+            )}
+            {manga.status && <span>📊 สถานะมังงะ: {manga.status}</span>}
+            {manga.year && <span>📅 ปีที่เผยแพร่: {manga.year}</span>}
+            {manga.originalLanguage && <span>🌐 ภาษาต้นฉบับ: {manga.originalLanguage.toUpperCase()}</span>}
           </div>
 
           {manga.tags && manga.tags.length > 0 && (
-            <div className="manga-detail-tags">
+            <div className="manga-detail-tags" style={{ marginTop: '12px' }}>
               {manga.tags.map((tag) => (
                 <span key={tag} className="tag">
                   {tag}
@@ -188,13 +202,14 @@ export default function MangaDetailPage() {
               className={`btn ${inLibrary ? 'btn-danger' : 'btn-primary'}`}
               onClick={handleToggleLibrary}
             >
-              {inLibrary ? '❌ ลบออกจากไลบรารี' : '📚 เพิ่มในไลบรารี'}
+              {inLibrary ? '❌ ลบออกจากไลบรารี' : '📚 เพิ่มเข้าชั้นหนังสือ'}
             </button>
 
             {inLibrary && (
               <select
-                value={libraryCategory}
-                onChange={(e) => handleCategoryChange(e.target.value)}
+                value={libraryShelf}
+                onChange={(e) => handleShelfChange(e.target.value as LibraryShelf)}
+                title="ชั้นหนังสือ (Library Shelf)"
                 style={{
                   background: 'var(--bg-card)',
                   color: 'var(--text-primary)',
@@ -220,15 +235,15 @@ export default function MangaDetailPage() {
         </div>
       </div>
 
-      {/* Continue Reading Prompt */}
+      {/* Continue Reading Prompt (Reading Progress) */}
       {lastReadInfo && (
         <div className="continue-card">
           <div>
             <div style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--accent-primary)', marginBottom: '2px' }}>
-              📍 อ่านค้างไว้ที่ ตอนที่ {lastReadInfo.chapterNumber} (หน้าที่ {lastReadInfo.pageIndex + 1})
+              📍 ความคืบหน้าการอ่าน: ตอนที่ {lastReadInfo.chapterNumber} (หน้าที่ {lastReadInfo.pageIndex + 1})
             </div>
             <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-              กดปุ่มด้านขวาเพื่ออ่านต่อจากจุดเดิมได้ทันที
+              กดปุ่มด้านขวาเพื่ออ่านต่อจากตำแหน่งล่าสุดทันที
             </div>
           </div>
           <Link
@@ -243,13 +258,45 @@ export default function MangaDetailPage() {
 
       {/* Chapter List Section */}
       <div className="chapter-list">
-        <div className="chapter-list-header">
+        <div className="chapter-list-header" style={{ flexWrap: 'wrap', gap: '12px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <h2>📑 รายการตอน</h2>
             <span className="chapter-list-count">{totalChapters} ตอน</span>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            {/* Language filter pills */}
+            <div className="pill-group">
+              <button
+                className={`pill-item ${selectedLang === 'all' ? 'active' : ''}`}
+                onClick={() => setSelectedLang('all')}
+                title="ทุกภาษา"
+              >
+                🌐 ทั้งหมด
+              </button>
+              <button
+                className={`pill-item ${selectedLang === 'en' ? 'active' : ''}`}
+                onClick={() => setSelectedLang('en')}
+                title="เฉพาะภาษาอังกฤษ"
+              >
+                🇬🇧 EN
+              </button>
+              <button
+                className={`pill-item ${selectedLang === 'ja' ? 'active' : ''}`}
+                onClick={() => setSelectedLang('ja')}
+                title="เฉพาะภาษาญี่ปุ่น"
+              >
+                🇯🇵 JA
+              </button>
+              <button
+                className={`pill-item ${selectedLang === 'th' ? 'active' : ''}`}
+                onClick={() => setSelectedLang('th')}
+                title="เฉพาะภาษาไทย"
+              >
+                🇹🇭 TH
+              </button>
+            </div>
+
             {/* Search chapter input */}
             <input
               type="text"
@@ -263,7 +310,7 @@ export default function MangaDetailPage() {
                 padding: '6px 12px',
                 fontSize: '0.8rem',
                 color: 'var(--text-primary)',
-                width: '140px',
+                width: '130px',
               }}
             />
 
@@ -287,7 +334,7 @@ export default function MangaDetailPage() {
           <div className="empty-state">
             <div className="empty-state-icon">📭</div>
             <h3>ไม่พบตอนที่ค้นหา</h3>
-            <p>กรุณาลองค้นหาด้วยคำอื่น หรือมังงะเรื่องนี้ยังไม่มีตอนที่พร้อมอ่าน</p>
+            <p>กรุณาลองเปลี่ยนตัวกรองภาษา หรือค้นหาด้วยคำอื่น</p>
           </div>
         ) : (
           filteredChapters.map((chapter) => (
@@ -298,7 +345,7 @@ export default function MangaDetailPage() {
                   <span className="chapter-title">{chapter.title || ''}</span>
                 </div>
                 <div className="chapter-item-right">
-                  <span className="chapter-lang">{chapter.language}</span>
+                  <span className={`chapter-lang lang-badge ${chapter.language}`}>{chapter.language}</span>
                   {chapter.scanlationGroup && <span>{chapter.scanlationGroup}</span>}
                   <span>{chapter.pages}p</span>
                 </div>

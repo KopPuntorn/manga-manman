@@ -98,21 +98,46 @@ export interface Translation {
   createdAt: string;
 }
 
+export type LibraryShelf = 'reading' | 'plan_to_read' | 'completed' | 'dropped';
+
 export interface LibraryEntry {
   id: number;
   mangaId: string;
   title: string;
   coverUrl: string;
-  category: 'reading' | 'plan_to_read' | 'completed' | 'dropped';
+  category: LibraryShelf;
+  shelf?: LibraryShelf;
   addedAt: string;
 }
 
-export interface ReadingHistory {
+export interface ReadingProgress {
   id: number;
   mangaId: string;
   chapterId: string;
   pageIndex: number;
   updatedAt: string;
+}
+
+export type ReadingHistory = ReadingProgress;
+
+export interface GlobalReadingProgressEntry {
+  id: number;
+  mangaId: string;
+  chapterId: string;
+  pageIndex: number;
+  updatedAt: string;
+  title?: string;
+  coverUrl?: string;
+}
+
+export type GlobalHistoryEntry = GlobalReadingProgressEntry;
+
+export interface ReadingStats {
+  totalChaptersRead: number;
+  totalLibraryEntries?: number;
+  totalBookmarked: number;
+  shelvesCount?: Record<string, number>;
+  categoriesCount: Record<string, number>;
 }
 
 export interface SearchFilterParams {
@@ -148,7 +173,6 @@ export async function searchMangaFiltered(filters: SearchFilterParams) {
   );
 }
 
-
 export async function getTags() {
   return fetchAPI<MangaTag[]>('/api/tags');
 }
@@ -157,9 +181,23 @@ export async function getMangaDetail(mangaId: string) {
   return fetchAPI<MangaDetail>(`/api/manga/${mangaId}`);
 }
 
-export async function getChapters(mangaId: string, limit = 100, offset = 0, order: 'asc' | 'desc' = 'asc') {
+export async function getChapters(
+  mangaId: string,
+  limit = 100,
+  offset = 0,
+  order: 'asc' | 'desc' = 'asc',
+  languages?: string[]
+) {
+  const params = new URLSearchParams();
+  params.set('limit', limit.toString());
+  params.set('offset', offset.toString());
+  params.set('order', order);
+  if (languages && languages.length > 0) {
+    params.set('languages', languages.join(','));
+  }
+
   return fetchAPI<{ chapters: Chapter[]; total: number }>(
-    `/api/manga/${mangaId}/chapters?limit=${limit}&offset=${offset}&order=${order}`
+    `/api/manga/${mangaId}/chapters?${params.toString()}`
   );
 }
 
@@ -188,41 +226,59 @@ export async function getChapterTranslations(chapterId: string) {
   return fetchAPI<Translation[]>(`/api/translate/${chapterId}`);
 }
 
-export async function getLibrary(category?: string) {
-  const query = category && category !== 'all' ? `?category=${category}` : '';
+export async function getLibrary(shelf?: string) {
+  const query = shelf && shelf !== 'all' ? `?shelf=${shelf}` : '';
   return fetchAPI<LibraryEntry[]>(`/api/library${query}`);
 }
 
-export async function addToLibrary(mangaId: string, title: string, coverUrl: string, category = 'reading') {
+export async function addToLibrary(mangaId: string, title: string, coverUrl: string, shelf: LibraryShelf = 'reading') {
   return fetchAPI<LibraryEntry>('/api/library', {
     method: 'POST',
-    body: JSON.stringify({ mangaId, title, coverUrl, category }),
+    body: JSON.stringify({ mangaId, title, coverUrl, shelf, category: shelf }),
   });
 }
 
-export async function updateLibraryCategory(mangaId: string, category: string) {
-  return fetchAPI<{ mangaId: string; category: string }>(`/api/library/${mangaId}/category`, {
+export async function updateLibraryShelf(mangaId: string, shelf: string) {
+  return fetchAPI<{ mangaId: string; shelf: string; category: string }>(`/api/library/${mangaId}/shelf`, {
     method: 'PATCH',
-    body: JSON.stringify({ category }),
+    body: JSON.stringify({ shelf, category: shelf }),
   });
 }
+
+export const updateLibraryCategory = updateLibraryShelf;
 
 export async function removeFromLibrary(mangaId: string) {
   return fetchAPI<void>(`/api/library/${mangaId}`, { method: 'DELETE' });
 }
 
 export async function checkLibrary(mangaId: string) {
-  return fetchAPI<{ inLibrary: boolean; category?: string }>(`/api/library/${mangaId}/check`);
+  return fetchAPI<{ inLibrary: boolean; shelf?: LibraryShelf; category?: LibraryShelf }>(`/api/library/${mangaId}/check`);
 }
 
-export async function getHistory(mangaId: string) {
-  return fetchAPI<ReadingHistory[]>(`/api/history/${mangaId}`);
+export async function getReadingProgress(mangaId: string) {
+  return fetchAPI<ReadingProgress[]>(`/api/progress/${mangaId}`);
 }
 
-export async function updateHistory(mangaId: string, chapterId: string, pageIndex: number) {
-  return fetchAPI<void>('/api/history', {
+export const getHistory = getReadingProgress;
+
+export async function getAllReadingProgress(limit = 50) {
+  return fetchAPI<GlobalReadingProgressEntry[]>(`/api/progress?limit=${limit}`);
+}
+
+export const getAllHistory = getAllReadingProgress;
+
+export async function getReadingStats() {
+  return fetchAPI<ReadingStats>('/api/stats');
+}
+
+export async function updateReadingProgress(mangaId: string, chapterId: string, pageIndex: number) {
+  return fetchAPI<void>('/api/progress', {
     method: 'PUT',
     body: JSON.stringify({ mangaId, chapterId, pageIndex }),
   });
 }
+
+export const updateHistory = updateReadingProgress;
+
+
 

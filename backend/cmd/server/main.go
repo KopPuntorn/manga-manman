@@ -110,13 +110,19 @@ func main() {
 	// Library routes
 	api.Get("/library", libraryHandler.GetLibrary)
 	api.Post("/library", libraryHandler.AddToLibrary)
+	api.Patch("/library/:mangaId/shelf", libraryHandler.UpdateCategory)
 	api.Patch("/library/:mangaId/category", libraryHandler.UpdateCategory)
 	api.Delete("/library/:mangaId", libraryHandler.RemoveFromLibrary)
 	api.Get("/library/:mangaId/check", libraryHandler.CheckLibrary)
 
-	// History routes
+	// Reading Progress & Stats routes
+	api.Get("/progress", libraryHandler.GetAllHistory)
+	api.Get("/progress/:mangaId", libraryHandler.GetHistory)
+	api.Put("/progress", libraryHandler.UpdateHistory)
+	api.Get("/history", libraryHandler.GetAllHistory)
 	api.Get("/history/:mangaId", libraryHandler.GetHistory)
 	api.Put("/history", libraryHandler.UpdateHistory)
+	api.Get("/stats", libraryHandler.GetReadingStats)
 
 
 	// Start server

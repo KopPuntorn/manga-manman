@@ -65,24 +65,26 @@ npm run dev
 - **Keyboard Shortcuts**:
   - `→` / `D` : Next Page / Chapter
   - `←` / `A` : Previous Page
-  - `T` : Cycle Translation modes (Thai / Side-by-Side / Original / Off)
+  - `T` : Cycle Translation modes (Translation / Bilingual Text Mode / Original Page / Off)
   - `M` : Switch Reading modes (Webtoon / Single / Double)
+  - `S` : Open Reader Settings (Font, Text Block Theme, Text Block Opacity)
   - `F` : Toggle Fullscreen
   - `?` / `H` : Open Shortcuts help dialog
 - **Chapter Quick Navigation**: Jump between chapters directly from the reader bar
 
-### 🇹🇭 AI Manga Translation & Bubble Editor
-- **Thai Translation Overlay**: Formatted speech bubbles directly over manga dialogues
-- **Bilingual & Original Modes**: Side-by-side view (Thai + Japanese) or Original raw
-- **Inline Translation Editor**: Click any bubble to edit Thai text and save directly to PostgreSQL database
+### 🇹🇭 Manga Translation & Translation Correction
+- **Translation Overlay**: Formatted Thai text directly positioned over detected Text Blocks
+- **Bilingual Text Mode & Original Page**: View Source Text and Thai Translation together, or view the clean Original Page
+- **Translation Correction**: Click any Text Block to edit the Thai translation text and save directly to PostgreSQL database
 - **Translation Caching**: Translate once, stored forever in database
 
-### 📚 Personal Library & Bookmarks
-- **Status Categories**: `Reading` (กำลังอ่าน), `Plan to Read` (วางแผนจะอ่าน), `Completed` (อ่านจบแล้ว), `Dropped` (พักไว้ก่อน)
-- **Auto-Resume**: "Continue Reading" prompt taking you back to the exact chapter and page
+### 📚 Reader Library & Reading Progress
+- **Library Shelves**: Reader-classified shelves: `Reading` (กำลังอ่าน), `Plan to Read` (วางแผนจะอ่าน), `Completed` (อ่านจบแล้ว), `Dropped` (พักไว้ก่อน)
+- **Reading Progress**: Automatically tracks resume position (Chapter and Page) per Manga
+- **Auto-Resume**: "Continue Reading" prompt taking the reader back to their exact reading position
 
 ### 🔍 Explore & Search
-- **Genre & Tag Chips**: Action, Romance, Comedy, Fantasy, Isekai, Slice of Life, Mystery, Sci-Fi, Horror
-- **Status Filters**: Ongoing vs Completed
+- **Tags**: Filter by source-provided tags (Shounen, Seinen, Shoujo, Action, Romance, Fantasy, Isekai, Comedy, Slice of Life, Mystery, Sci-Fi, Horror, etc.)
+- **Manga Status Filters**: Ongoing vs Completed
+- **Content Rating**: Safe, Suggestive, Erotica / Mature
 - **Sorting Options**: Most Popular, Latest Uploads, Top Rated, Relevance
-

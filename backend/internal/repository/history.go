@@ -52,15 +52,71 @@ func (r *HistoryRepository) Upsert(ctx context.Context, req model.UpdateHistoryR
 	return err
 }
 
-func (r *HistoryRepository) GetLatest(ctx context.Context, mangaID string) (*model.ReadingHistory, error) {
-	var h model.ReadingHistory
-	err := r.pool.QueryRow(ctx,
-		`SELECT id, manga_id, chapter_id, page_index, updated_at
-		 FROM reading_history WHERE manga_id = $1 ORDER BY updated_at DESC LIMIT 1`,
-		mangaID,
-	).Scan(&h.ID, &h.MangaID, &h.ChapterID, &h.PageIndex, &h.UpdatedAt)
+func (r *HistoryRepository) GetAll(ctx context.Context, limit int) ([]model.GlobalHistoryEntry, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	rows, err := r.pool.Query(ctx,
+		`SELECT h.id, h.manga_id, h.chapter_id, h.page_index, h.updated_at,
+		        COALESCE(l.title, '') as title, COALESCE(l.cover_url, '') as cover_url
+		 FROM reading_history h
+		 LEFT JOIN library l ON h.manga_id = l.manga_id
+		 ORDER BY h.updated_at DESC
+		 LIMIT $1`,
+		limit,
+	)
 	if err != nil {
 		return nil, err
 	}
-	return &h, nil
+	defer rows.Close()
+
+	var history []model.GlobalHistoryEntry
+	for rows.Next() {
+		var h model.GlobalHistoryEntry
+		if err := rows.Scan(&h.ID, &h.MangaID, &h.ChapterID, &h.PageIndex, &h.UpdatedAt, &h.Title, &h.CoverURL); err != nil {
+			return nil, err
+		}
+		history = append(history, h)
+	}
+
+	if history == nil {
+		history = []model.GlobalHistoryEntry{}
+	}
+	return history, nil
 }
+
+func (r *HistoryRepository) GetStats(ctx context.Context) (*model.ReadingStats, error) {
+	var totalRead int
+	err := r.pool.QueryRow(ctx, `SELECT COUNT(*) FROM reading_history`).Scan(&totalRead)
+	if err != nil {
+		totalRead = 0
+	}
+
+	var totalBookmarked int
+	err = r.pool.QueryRow(ctx, `SELECT COUNT(*) FROM library`).Scan(&totalBookmarked)
+	if err != nil {
+		totalBookmarked = 0
+	}
+
+	categoriesCount := make(map[string]int)
+	rows, err := r.pool.Query(ctx, `SELECT category, COUNT(*) FROM library GROUP BY category`)
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var cat string
+			var count int
+			if err := rows.Scan(&cat, &count); err == nil {
+				categoriesCount[cat] = count
+			}
+		}
+	}
+
+	return &model.ReadingStats{
+		TotalChaptersRead:   totalRead,
+		TotalLibraryEntries: totalBookmarked,
+		TotalBookmarked:     totalBookmarked,
+		ShelvesCount:        categoriesCount,
+		CategoriesCount:     categoriesCount,
+	}, nil
+}
+

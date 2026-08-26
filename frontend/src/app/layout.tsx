@@ -1,10 +1,17 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "Manga Manman — อ่านมังงะแปลไทย",
   description: "เว็บอ่านมังงะส่วนตัว ดึงจาก MangaDex พร้อมแปลไทยอัตโนมัติด้วย AI",
+  manifest: "/manifest.json",
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0f172a",
+  width: "device-width",
+  initialScale: 1,
 };
 
 export default function RootLayout({
@@ -17,7 +24,12 @@ export default function RootLayout({
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Kanit:ital,wght@0,400;0,600;0,700;1,400&family=Prompt:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Bai+Jamjuree:ital,wght@0,400;0,600;0,700;1,400&family=Itim&family=Kanit:ital,wght@0,400;0,600;0,700;1,400&family=Mali:ital,wght@0,400;0,600;0,700;1,400&family=Mitr:wght@400;500;600&family=Prompt:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap"
+          rel="stylesheet"
+        />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
       </head>
       <body suppressHydrationWarning>
 
