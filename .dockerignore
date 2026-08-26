@@ -1,0 +1,10 @@
+.git
+.github
+node_modules
+frontend
+backend/server.exe
+*.exe
+.env
+.env.local
+.env.*.local
+.next
