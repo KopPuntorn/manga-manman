@@ -51,12 +51,12 @@ export default function MangaDetailPage() {
           getReadingProgress(mangaId).catch(() => []),
         ]);
         setManga(detail);
-        setChapters(chaptersData.chapters);
-        setTotalChapters(chaptersData.total);
+        setChapters(chaptersData?.chapters || []);
+        setTotalChapters(chaptersData?.total || 0);
         setInLibrary(libraryCheck.inLibrary);
         const resolvedShelf = libraryCheck.shelf || libraryCheck.category;
         if (resolvedShelf) setLibraryShelf(resolvedShelf);
-        setProgressList(progressData);
+        setProgressList(progressData || []);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load manga');
       } finally {
@@ -96,7 +96,7 @@ export default function MangaDetailPage() {
 
   // Find latest read chapter for Continue Reading
   const lastReadInfo = useMemo(() => {
-    if (!progressList || progressList.length === 0 || chapters.length === 0) return null;
+    if (!progressList || progressList.length === 0 || !chapters || chapters.length === 0) return null;
     const latest = progressList[0];
     const chapter = chapters.find((c) => c.id === latest.chapterId);
     return {
@@ -108,11 +108,12 @@ export default function MangaDetailPage() {
 
   // Filtered chapters
   const filteredChapters = useMemo(() => {
-    if (!chapterSearch.trim()) return chapters;
+    const list = chapters || [];
+    if (!chapterSearch.trim()) return list;
     const q = chapterSearch.toLowerCase().trim();
-    return chapters.filter(
+    return list.filter(
       (c) =>
-        c.chapter.toLowerCase().includes(q) ||
+        (c.chapter && c.chapter.toLowerCase().includes(q)) ||
         (c.title && c.title.toLowerCase().includes(q))
     );
   }, [chapters, chapterSearch]);
@@ -226,7 +227,7 @@ export default function MangaDetailPage() {
               </select>
             )}
 
-            {chapters.length > 0 && (
+            {chapters && chapters.length > 0 && (
               <Link href={`/manga/${mangaId}/${chapters[0].id}`} className="btn btn-secondary">
                 ▶️ เริ่มอ่านตอนแรก
               </Link>

@@ -263,7 +263,7 @@ func (s *MangaDexService) GetChapterListWithFilters(mangaID string, limit, offse
 	}
 
 	// MangaDex API allows max limit=100 per call. We paginate in batches of 100 up to requested limit.
-	var allChapters []model.Chapter
+	allChapters := make([]model.Chapter, 0)
 	totalChapters := 0
 	seenChapterNums := make(map[string]bool)
 
