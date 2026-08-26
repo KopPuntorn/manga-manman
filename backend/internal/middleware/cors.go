@@ -10,5 +10,8 @@ func SetupCORS(app *fiber.App, frontendURL string) {
 		AllowOrigins: "*",
 		AllowHeaders: "Origin, Content-Type, Accept, Authorization, X-Requested-With",
 		AllowMethods: "GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD",
+		AllowOriginsFunc: func(origin string) bool {
+			return true
+		},
 	}))
 }
