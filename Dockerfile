@@ -1,6 +1,8 @@
 # Build stage for Manga-Manman Backend
-FROM golang:1.23-alpine AS builder
+FROM golang:alpine AS builder
 WORKDIR /app
+
+ENV GOTOOLCHAIN=auto
 
 # Copy dependency manifests from backend directory
 COPY backend/go.mod backend/go.sum ./
