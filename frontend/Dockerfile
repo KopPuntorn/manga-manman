@@ -5,12 +5,14 @@ WORKDIR /app
 ARG NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 
-# Copy all files from context
+# Copy all repository files
 COPY . .
 
-# If building from repository root, move frontend files to working directory
-RUN if [ -f "frontend/package.json" ]; then \
-      cp -rf frontend/. . 2>/dev/null || true; \
+# If building from repository root, replace root files with frontend package
+RUN if [ -d "frontend" ]; then \
+      rm -f package.json package-lock.json; \
+      cp -a frontend/. .; \
+      rm -rf frontend backend; \
     fi
 
 # Install dependencies and build Next.js
