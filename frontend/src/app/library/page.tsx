@@ -285,7 +285,7 @@ export default function LibraryPage() {
                     <Link href={`/manga/${entry.mangaId}`}>
                       <div className="library-card-cover">
                         {entry.coverUrl ? (
-                          <img src={entry.coverUrl} alt={entry.title} loading="lazy" />
+                          <img src={entry.coverUrl} alt={entry.title} loading="lazy" referrerPolicy="no-referrer" />
                         ) : (
                           <div
                             style={{
@@ -365,7 +365,7 @@ export default function LibraryPage() {
                 <div key={item.id} className="history-card">
                   <div className="history-left">
                     {item.coverUrl ? (
-                      <img src={item.coverUrl} alt={item.title || 'Manga'} className="history-cover" />
+                      <img src={item.coverUrl} alt={item.title || 'Manga'} className="history-cover" referrerPolicy="no-referrer" />
                     ) : (
                       <div className="history-cover" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         📖

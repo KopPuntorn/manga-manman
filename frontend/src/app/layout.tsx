@@ -6,6 +6,7 @@ export const metadata: Metadata = {
   title: "Manga Manman — อ่านมังงะแปลไทย",
   description: "เว็บอ่านมังงะส่วนตัว ดึงจาก MangaDex พร้อมแปลไทยอัตโนมัติด้วย AI",
   manifest: "/manifest.json",
+  referrer: "no-referrer",
 };
 
 export const viewport: Viewport = {
@@ -22,6 +23,7 @@ export default function RootLayout({
   return (
     <html lang="th" suppressHydrationWarning data-scroll-behavior="smooth">
       <head>
+        <meta name="referrer" content="no-referrer" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link

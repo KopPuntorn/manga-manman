@@ -148,7 +148,7 @@ export default function MangaDetailPage() {
       <div className="manga-detail">
         <div className="manga-detail-cover">
           {manga.coverUrl ? (
-            <img src={manga.coverUrl.replace('.256.jpg', '.512.jpg')} alt={manga.title} />
+            <img src={manga.coverUrl.replace('.256.jpg', '.512.jpg')} alt={manga.title} referrerPolicy="no-referrer" />
           ) : (
             <div
               style={{

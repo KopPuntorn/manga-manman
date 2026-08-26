@@ -210,7 +210,7 @@ export default function HomePage() {
           <div className="hero-spotlight-content">
             <div className="hero-spotlight-cover">
               {spotlightManga.coverUrl ? (
-                <img src={spotlightManga.coverUrl} alt={spotlightManga.title} />
+                <img src={spotlightManga.coverUrl} alt={spotlightManga.title} referrerPolicy="no-referrer" />
               ) : (
                 <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '3rem' }}>
                   📖
@@ -396,7 +396,7 @@ export default function HomePage() {
                   )}
                   <div className="manga-card-image">
                     {manga.coverUrl ? (
-                      <img src={manga.coverUrl} alt={manga.title} loading="lazy" />
+                      <img src={manga.coverUrl} alt={manga.title} loading="lazy" referrerPolicy="no-referrer" />
                     ) : (
                       <div
                         style={{

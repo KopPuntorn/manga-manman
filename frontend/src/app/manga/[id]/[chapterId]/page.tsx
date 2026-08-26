@@ -685,7 +685,7 @@ export default function ReaderPage() {
               data-page-index={idx}
             >
               <div className="reader-image-container" style={{ position: 'relative', display: 'inline-block', maxWidth: '100%' }}>
-                <img src={pageUrl} alt={`Page ${idx + 1}`} loading={idx < 3 ? 'eager' : 'lazy'} />
+                <img src={pageUrl} alt={`Page ${idx + 1}`} loading={idx < 3 ? 'eager' : 'lazy'} referrerPolicy="no-referrer" />
 
                 {/* Translation overlay */}
                 {translationMode !== 'off' && translations[idx] && (
@@ -749,7 +749,7 @@ export default function ReaderPage() {
 
           <div className="reader-page" style={{ margin: '0 auto', maxWidth: '100%' }}>
             <div className="reader-image-container" style={{ position: 'relative', display: 'inline-block', maxWidth: '100%' }}>
-              <img src={pages[currentPage]} alt={`Page ${currentPage + 1}`} />
+              <img src={pages[currentPage]} alt={`Page ${currentPage + 1}`} referrerPolicy="no-referrer" />
 
               {translationMode !== 'off' && translations[currentPage] && (
                 <TranslationOverlay
@@ -789,7 +789,7 @@ export default function ReaderPage() {
           {currentPage + 1 < pages.length && (
             <div className="reader-page" style={{ flex: 1, maxWidth: '50%' }}>
               <div className="reader-image-container" style={{ position: 'relative', display: 'inline-block', maxWidth: '100%' }}>
-                <img src={pages[currentPage + 1]} alt={`Page ${currentPage + 2}`} />
+                <img src={pages[currentPage + 1]} alt={`Page ${currentPage + 2}`} referrerPolicy="no-referrer" />
                 {translationMode !== 'off' && translations[currentPage + 1] && (
                   <TranslationOverlay
                     texts={translations[currentPage + 1].result.texts}
@@ -809,7 +809,7 @@ export default function ReaderPage() {
           {/* Left Page */}
           <div className="reader-page" style={{ flex: 1, maxWidth: '50%' }}>
             <div className="reader-image-container" style={{ position: 'relative', display: 'inline-block', maxWidth: '100%' }}>
-              <img src={pages[currentPage]} alt={`Page ${currentPage + 1}`} />
+              <img src={pages[currentPage]} alt={`Page ${currentPage + 1}`} referrerPolicy="no-referrer" />
               {translationMode !== 'off' && translations[currentPage] && (
                 <TranslationOverlay
                   texts={translations[currentPage].result.texts}
