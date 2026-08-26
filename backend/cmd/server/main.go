@@ -44,13 +44,13 @@ func main() {
 		} else {
 			log.Printf("🤖 Gemini Translator active with %d API Key(s) in Load Balancing pool", len(cfg.GeminiAPIKeys))
 		}
-		translator = service.NewGeminiTranslator(cfg.GeminiAPIKeys)
+		translator = service.NewGeminiTranslator(cfg.GeminiAPIKeys, cfg.GeminiModel)
 	case "groq":
 		fallthrough
 	default:
 		if cfg.GroqAPIKey == "" && len(cfg.GeminiAPIKeys) > 0 {
 			log.Printf("ℹ️ GROQ_API_KEY not set, using Gemini Translator with %d API Key(s)", len(cfg.GeminiAPIKeys))
-			translator = service.NewGeminiTranslator(cfg.GeminiAPIKeys)
+			translator = service.NewGeminiTranslator(cfg.GeminiAPIKeys, cfg.GeminiModel)
 		} else {
 			if cfg.GroqAPIKey == "" {
 				log.Println("⚠️  GROQ_API_KEY not set. Translation will fail until configured.")

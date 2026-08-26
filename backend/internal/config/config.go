@@ -14,6 +14,7 @@ type Config struct {
 	GroqAPIKeys     []string
 	GeminiAPIKey    string
 	GeminiAPIKeys   []string
+	GeminiModel     string
 	MangaTranslator string
 	FrontendURL     string
 }
@@ -37,6 +38,7 @@ func Load() *Config {
 		GroqAPIKeys:     groqKeys,
 		GeminiAPIKey:    geminiSingle,
 		GeminiAPIKeys:   geminiKeys,
+		GeminiModel:     getEnv("GEMINI_MODEL", ""),
 		MangaTranslator: getEnv("MANGA_TRANSLATOR", "gemini"),
 		FrontendURL:     getEnv("FRONTEND_URL", "http://localhost:3000"),
 	}

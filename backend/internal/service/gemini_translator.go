@@ -25,7 +25,7 @@ type GeminiTranslator struct {
 	client   *http.Client
 }
 
-func NewGeminiTranslator(apiKeys []string) *GeminiTranslator {
+func NewGeminiTranslator(apiKeys []string, customModel string) *GeminiTranslator {
 	transport := &http.Transport{
 		MaxIdleConns:        100,
 		MaxIdleConnsPerHost: 20,
@@ -33,10 +33,19 @@ func NewGeminiTranslator(apiKeys []string) *GeminiTranslator {
 		DisableCompression:  false,
 	}
 
+	modelList := []string{
+		"gemini-2.5-flash",
+		"gemini-2.5-flash-lite",
+		"gemini-1.5-flash",
+	}
+	if customModel != "" {
+		modelList = append([]string{customModel}, modelList...)
+	}
+
 	return &GeminiTranslator{
 		apiKeys:  apiKeys,
 		keyIndex: 0,
-		models:   []string{"gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"},
+		models:   modelList,
 		client: &http.Client{
 			Transport: transport,
 			Timeout:   90 * time.Second,
