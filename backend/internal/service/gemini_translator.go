@@ -21,12 +21,11 @@ import (
 type GeminiTranslator struct {
 	apiKeys  []string
 	keyIndex uint64
-	model    string
+	models   []string
 	client   *http.Client
 }
 
 func NewGeminiTranslator(apiKeys []string) *GeminiTranslator {
-	// Optimized HTTP client with connection pooling
 	transport := &http.Transport{
 		MaxIdleConns:        100,
 		MaxIdleConnsPerHost: 20,
@@ -37,7 +36,7 @@ func NewGeminiTranslator(apiKeys []string) *GeminiTranslator {
 	return &GeminiTranslator{
 		apiKeys:  apiKeys,
 		keyIndex: 0,
-		model:    "gemini-3.1-flash-lite",
+		models:   []string{"gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"},
 		client: &http.Client{
 			Transport: transport,
 			Timeout:   90 * time.Second,
@@ -59,36 +58,44 @@ func (g *GeminiTranslator) advanceKey() {
 	}
 }
 
-
-
 func (g *GeminiTranslator) Provider() string {
 	return "gemini"
 }
 
 func (g *GeminiTranslator) TranslatePage(ctx context.Context, imageURL string) (*model.TranslationResult, error) {
-	// Download the image and convert to base64
-	imgReq, err := http.NewRequestWithContext(ctx, "GET", imageURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf("create image request: %w", err)
-	}
-	imgReq.Header.Set("User-Agent", "MangaManman/1.0")
+	// Download the image with retry and proper headers
+	var imgBytes []byte
+	var downloadErr error
 
-	imgResp, err := g.client.Do(imgReq)
-	if err != nil {
-		return nil, fmt.Errorf("download image: %w", err)
-	}
-	defer imgResp.Body.Close()
+	for dlAttempt := 0; dlAttempt < 3; dlAttempt++ {
+		imgReq, err := http.NewRequestWithContext(ctx, "GET", imageURL, nil)
+		if err != nil {
+			return nil, fmt.Errorf("create image request: %w", err)
+		}
+		imgReq.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+		imgReq.Header.Set("Referer", "")
 
-	if imgResp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("download image failed with status %d", imgResp.StatusCode)
+		imgResp, err := g.client.Do(imgReq)
+		if err == nil && imgResp.StatusCode == http.StatusOK {
+			imgBytes, downloadErr = io.ReadAll(imgResp.Body)
+			imgResp.Body.Close()
+			if downloadErr == nil && len(imgBytes) > 0 {
+				break
+			}
+		} else {
+			if imgResp != nil {
+				imgResp.Body.Close()
+			}
+			downloadErr = err
+		}
+		time.Sleep(500 * time.Millisecond)
 	}
 
-	imgBytes, err := io.ReadAll(imgResp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("read image bytes: %w", err)
+	if len(imgBytes) == 0 {
+		return nil, fmt.Errorf("download image failed: %v", downloadErr)
 	}
 
-	// Optimize image: downscale to 900px width for fastest OCR upload & sub-second processing
+	// Optimize image: downscale to 900px width for fast OCR upload & sub-second processing
 	compressedBytes, err := optimizeMangaImage(imgBytes, 900)
 	if err != nil {
 		compressedBytes = imgBytes
@@ -96,8 +103,6 @@ func (g *GeminiTranslator) TranslatePage(ctx context.Context, imageURL string) (
 
 	base64Data := base64.StdEncoding.EncodeToString(compressedBytes)
 	contentType := "image/jpeg"
-
-
 
 	prompt := `You are an expert manga OCR reader and professional Thai manga typesetter.
 Carefully examine this manga page image.
@@ -129,10 +134,6 @@ Return ONLY valid JSON matching this schema:
 }
 If no dialogue bubbles exist on this page, return {"texts": []}.`
 
-
-
-
-
 	reqBody := map[string]interface{}{
 		"contents": []map[string]interface{}{
 			{
@@ -160,54 +161,66 @@ If no dialogue bubbles exist on this page, return {"texts": []}.`
 		return nil, fmt.Errorf("marshal gemini request: %w", err)
 	}
 
-
 	var respBody []byte
+	var lastStatus int
 
-	// Retry up to 4 times (cycling through API keys on 429/503)
-	for attempt := 0; attempt < 4; attempt++ {
-		currentKey := g.getKey(attempt)
-		geminiURL := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s", g.model, currentKey)
-
-		req, err := http.NewRequestWithContext(ctx, "POST", geminiURL, bytes.NewReader(jsonBody))
-		if err != nil {
-			return nil, fmt.Errorf("create gemini request: %w", err)
-		}
-		req.Header.Set("Content-Type", "application/json")
-
-		resp, err := g.client.Do(req)
-		if err != nil {
-			return nil, fmt.Errorf("do gemini request: %w", err)
-		}
-
-		respBody, err = io.ReadAll(resp.Body)
-		resp.Body.Close()
-		if err != nil {
-			return nil, fmt.Errorf("read gemini response: %w", err)
-		}
-
-		if resp.StatusCode == http.StatusOK {
-			g.advanceKey()
-			break
-		}
-
-		// If rate limited (429) and we have multiple keys, immediately advance to the next key without sleep!
-		if resp.StatusCode == http.StatusTooManyRequests && len(g.apiKeys) > 1 {
-			g.advanceKey()
-			continue
-		}
-
-		// If temporary high demand (503) or rate limit (429), sleep and retry with backoff
-		if (resp.StatusCode == http.StatusServiceUnavailable || resp.StatusCode == http.StatusTooManyRequests) && attempt < 3 {
-			sleepDuration := time.Duration(attempt+1) * 2000 * time.Millisecond
-			if resp.StatusCode == http.StatusTooManyRequests {
-				sleepDuration = time.Duration(attempt+1) * 3000 * time.Millisecond
+	// Try with model fallback and multiple key rotation
+	for _, currentModel := range g.models {
+		for attempt := 0; attempt < 4; attempt++ {
+			currentKey := g.getKey(attempt)
+			if currentKey == "" {
+				continue
 			}
-			time.Sleep(sleepDuration)
-			continue
-		}
+			geminiURL := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s", currentModel, currentKey)
 
-		return nil, fmt.Errorf("gemini API returned %d: %s", resp.StatusCode, string(respBody))
+			req, err := http.NewRequestWithContext(ctx, "POST", geminiURL, bytes.NewReader(jsonBody))
+			if err != nil {
+				return nil, fmt.Errorf("create gemini request: %w", err)
+			}
+			req.Header.Set("Content-Type", "application/json")
+
+			resp, err := g.client.Do(req)
+			if err != nil {
+				time.Sleep(500 * time.Millisecond)
+				continue
+			}
+
+			respBody, err = io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if err != nil {
+				continue
+			}
+
+			lastStatus = resp.StatusCode
+			if resp.StatusCode == http.StatusOK {
+				g.advanceKey()
+				goto Parsing
+			}
+
+			// If 404 (model not found on API), immediately break to try next model in chain
+			if resp.StatusCode == http.StatusNotFound {
+				break
+			}
+
+			// If rate limited (429) and we have multiple keys, immediately advance to next key
+			if resp.StatusCode == http.StatusTooManyRequests && len(g.apiKeys) > 1 {
+				g.advanceKey()
+				continue
+			}
+
+			// If temporary high demand (503) or rate limit (429), sleep briefly and retry
+			if (resp.StatusCode == http.StatusServiceUnavailable || resp.StatusCode == http.StatusTooManyRequests) && attempt < 3 {
+				time.Sleep(time.Duration(attempt+1) * 1500 * time.Millisecond)
+				continue
+			}
+		}
 	}
+
+	if lastStatus != http.StatusOK {
+		return nil, fmt.Errorf("gemini API returned %d: %s", lastStatus, string(respBody))
+	}
+
+Parsing:
 
 
 

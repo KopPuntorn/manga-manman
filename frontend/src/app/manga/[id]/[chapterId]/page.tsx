@@ -223,13 +223,16 @@ export default function ReaderPage() {
     });
   }, [currentPage, pages]);
 
-  // Translate a specific page
+  // Translate a specific page with automatic cooldown and error recovery
   const translateSpecificPage = useCallback(
     async (pageIndex: number, force = false) => {
       if (pageIndex < 0 || pageIndex >= pages.length) return;
       if (translatingPages.has(pageIndex)) return;
       if (translations[pageIndex]) return;
       if (!force && failedPages.has(pageIndex)) return;
+
+      // Limit max parallel background requests to 2 to prevent rate-limit 429
+      if (!force && translatingPages.size >= 2) return;
 
       setTranslatingPages((prev) => new Set(prev).add(pageIndex));
       setTranslationError('');
@@ -252,6 +255,15 @@ export default function ReaderPage() {
         const msg = err instanceof Error ? err.message : 'Translation failed';
         setTranslationError(msg);
         setFailedPages((prev) => new Set(prev).add(pageIndex));
+
+        // Auto-clear failed status after 6 seconds so scrolling back re-attempts smoothly
+        setTimeout(() => {
+          setFailedPages((prev) => {
+            const next = new Set(prev);
+            next.delete(pageIndex);
+            return next;
+          });
+        }, 6000);
       } finally {
         setTranslatingPages((prev) => {
           const next = new Set(prev);
