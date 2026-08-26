@@ -481,12 +481,27 @@ func (s *MangaDexService) toChapter(ch mdChapter) model.Chapter {
 }
 
 func (s *MangaDexService) extractCoverURL(mangaID string, rels []mdRelationship) string {
+	// Known MangaDex placeholder cover art replacements for popular series
+	knownCovers := map[string]string{
+		// Solo Leveling (Na Honjaman Level-Up) official Web cover (Sung Jin-woo)
+		"32d76d19-8a05-4db0-9fc2-e0b0648fe9d0": "7c21cc6b-df69-4880-a185-53a3f7a2f81d.jpg",
+	}
+
+	if customFileName, ok := knownCovers[mangaID]; ok {
+		return fmt.Sprintf("https://uploads.mangadex.org/covers/%s/%s.256.jpg", mangaID, customFileName)
+	}
+
 	for _, rel := range rels {
 		if rel.Type == "cover_art" && rel.Attributes != nil {
 			var attrs struct {
 				FileName string `json:"fileName"`
 			}
 			if json.Unmarshal(rel.Attributes, &attrs) == nil && attrs.FileName != "" {
+				if attrs.FileName == "e90bdc47-c8b9-4df7-b2c0-17641b645ee1.jpg" {
+					if alt, ok := knownCovers[mangaID]; ok {
+						return fmt.Sprintf("https://uploads.mangadex.org/covers/%s/%s.256.jpg", mangaID, alt)
+					}
+				}
 				return fmt.Sprintf("https://uploads.mangadex.org/covers/%s/%s.256.jpg", mangaID, attrs.FileName)
 			}
 		}
