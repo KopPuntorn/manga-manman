@@ -7,6 +7,11 @@ function getApiUrl(): string {
 }
 
 const API_URL = getApiUrl();
+const mangaDetailRequests = new Map<string, Promise<MangaDetail>>();
+const chapterListRequests = new Map<string, Promise<{ chapters: Chapter[]; total: number }>>();
+const chapterPageRequests = new Map<string, Promise<ChapterPages>>();
+const chapterTranslationRequests = new Map<string, Promise<Translation[]>>();
+const translationRequests = new Map<string, Promise<Translation>>();
 
 interface APIResponse<T> {
   success: boolean;
@@ -85,7 +90,7 @@ export interface ChapterPages {
 }
 
 export interface TextBlock {
-  original: string;
+  original: string; // Source Text
   thai: string;
   x: number;
   y: number;
@@ -113,8 +118,8 @@ export interface LibraryEntry {
   mangaId: string;
   title: string;
   coverUrl: string;
-  category: LibraryShelf;
   shelf?: LibraryShelf;
+  category: LibraryShelf; // Backward compatibility alias for Library Shelf
   addedAt: string;
 }
 
@@ -143,9 +148,9 @@ export type GlobalHistoryEntry = GlobalReadingProgressEntry;
 export interface ReadingStats {
   totalChaptersRead: number;
   totalLibraryEntries?: number;
-  totalBookmarked: number;
+  totalBookmarked: number; // Backward compatibility alias for totalLibraryEntries
   shelvesCount?: Record<string, number>;
-  categoriesCount: Record<string, number>;
+  categoriesCount: Record<string, number>; // Backward compatibility alias for shelvesCount
 }
 
 export interface SearchFilterParams {
@@ -186,7 +191,13 @@ export async function getTags() {
 }
 
 export async function getMangaDetail(mangaId: string) {
-  return fetchAPI<MangaDetail>(`/api/manga/${mangaId}`);
+  const existing = mangaDetailRequests.get(mangaId);
+  if (existing) return existing;
+
+  const request = fetchAPI<MangaDetail>(`/api/manga/${mangaId}`);
+  mangaDetailRequests.set(mangaId, request);
+  request.catch(() => mangaDetailRequests.delete(mangaId));
+  return request;
 }
 
 export async function getChapters(
@@ -196,6 +207,10 @@ export async function getChapters(
   order: 'asc' | 'desc' = 'asc',
   languages?: string[]
 ) {
+  const cacheKey = JSON.stringify({ mangaId, limit, offset, order, languages });
+  const existing = chapterListRequests.get(cacheKey);
+  if (existing) return existing;
+
   const params = new URLSearchParams();
   params.set('limit', limit.toString());
   params.set('offset', offset.toString());
@@ -204,20 +219,39 @@ export async function getChapters(
     params.set('languages', languages.join(','));
   }
 
-  return fetchAPI<{ chapters: Chapter[]; total: number }>(
+  const request = fetchAPI<{ chapters: Chapter[]; total: number }>(
     `/api/manga/${mangaId}/chapters?${params.toString()}`
   );
+  chapterListRequests.set(cacheKey, request);
+  request.catch(() => chapterListRequests.delete(cacheKey));
+  return request;
 }
 
 export async function getChapterPages(chapterId: string) {
-  return fetchAPI<ChapterPages>(`/api/chapter/${chapterId}/pages`);
+  const existing = chapterPageRequests.get(chapterId);
+  if (existing) return existing;
+
+  const request = fetchAPI<ChapterPages>(`/api/chapter/${chapterId}/pages`);
+  chapterPageRequests.set(chapterId, request);
+  request.catch(() => chapterPageRequests.delete(chapterId));
+  return request;
 }
 
 export async function translatePage(chapterId: string, pageIndex: number, imageUrl: string) {
-  return fetchAPI<Translation>('/api/translate', {
+  const cacheKey = `${chapterId}:${pageIndex}`;
+  const existing = translationRequests.get(cacheKey);
+  if (existing) return existing;
+
+  const request = fetchAPI<Translation>('/api/translate', {
     method: 'POST',
     body: JSON.stringify({ chapterId, pageIndex, imageUrl }),
   });
+  translationRequests.set(cacheKey, request);
+  request.then(
+    () => translationRequests.delete(cacheKey),
+    () => translationRequests.delete(cacheKey)
+  );
+  return request;
 }
 
 export async function updateTranslation(chapterId: string, pageIndex: number, texts: TextBlock[]) {
@@ -231,7 +265,13 @@ export async function updateTranslation(chapterId: string, pageIndex: number, te
 }
 
 export async function getChapterTranslations(chapterId: string) {
-  return fetchAPI<Translation[]>(`/api/translate/${chapterId}`);
+  const existing = chapterTranslationRequests.get(chapterId);
+  if (existing) return existing;
+
+  const request = fetchAPI<Translation[]>(`/api/translate/${chapterId}`);
+  chapterTranslationRequests.set(chapterId, request);
+  request.catch(() => chapterTranslationRequests.delete(chapterId));
+  return request;
 }
 
 export async function getLibrary(shelf?: string) {
@@ -253,6 +293,7 @@ export async function updateLibraryShelf(mangaId: string, shelf: string) {
   });
 }
 
+// Backward compatibility alias.
 export const updateLibraryCategory = updateLibraryShelf;
 
 export async function removeFromLibrary(mangaId: string) {
@@ -267,12 +308,14 @@ export async function getReadingProgress(mangaId: string) {
   return fetchAPI<ReadingProgress[]>(`/api/progress/${mangaId}`);
 }
 
+// Backward compatibility alias.
 export const getHistory = getReadingProgress;
 
 export async function getAllReadingProgress(limit = 50) {
   return fetchAPI<GlobalReadingProgressEntry[]>(`/api/progress?limit=${limit}`);
 }
 
+// Backward compatibility alias.
 export const getAllHistory = getAllReadingProgress;
 
 export async function getReadingStats() {
@@ -286,7 +329,5 @@ export async function updateReadingProgress(mangaId: string, chapterId: string, 
   });
 }
 
+// Backward compatibility alias.
 export const updateHistory = updateReadingProgress;
-
-
-

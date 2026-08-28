@@ -31,7 +31,7 @@ func (h *LibraryHandler) GetLibrary(c *fiber.Ctx) error {
 	var err error
 
 	if shelf != "" && shelf != "all" {
-		entries, err = h.libraryRepo.GetByCategory(c.Context(), shelf)
+		entries, err = h.libraryRepo.GetByShelf(c.Context(), shelf)
 	} else {
 		entries, err = h.libraryRepo.GetAll(c.Context())
 	}
@@ -80,8 +80,9 @@ func (h *LibraryHandler) AddToLibrary(c *fiber.Ctx) error {
 	})
 }
 
-// UpdateCategory handles PATCH /api/library/:mangaId/category (or /api/library/:mangaId/shelf)
-func (h *LibraryHandler) UpdateCategory(c *fiber.Ctx) error {
+// UpdateShelf handles PATCH /api/library/:mangaId/shelf.
+// The /category route remains as a backward compatibility alias.
+func (h *LibraryHandler) UpdateShelf(c *fiber.Ctx) error {
 	mangaID := c.Params("mangaId")
 	if mangaID == "" {
 		return c.Status(400).JSON(model.APIResponse{
@@ -90,7 +91,7 @@ func (h *LibraryHandler) UpdateCategory(c *fiber.Ctx) error {
 		})
 	}
 
-	var req model.UpdateCategoryRequest
+	var req model.UpdateShelfRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(400).JSON(model.APIResponse{
 			Success: false,
@@ -103,7 +104,7 @@ func (h *LibraryHandler) UpdateCategory(c *fiber.Ctx) error {
 		targetShelf = req.Category
 	}
 
-	if err := h.libraryRepo.UpdateCategory(c.Context(), mangaID, targetShelf); err != nil {
+	if err := h.libraryRepo.UpdateShelf(c.Context(), mangaID, targetShelf); err != nil {
 		return c.Status(500).JSON(model.APIResponse{
 			Success: false,
 			Error:   err.Error(),
@@ -145,7 +146,7 @@ func (h *LibraryHandler) RemoveFromLibrary(c *fiber.Ctx) error {
 // CheckLibrary handles GET /api/library/:mangaId/check
 func (h *LibraryHandler) CheckLibrary(c *fiber.Ctx) error {
 	mangaID := c.Params("mangaId")
-	exists, category, err := h.libraryRepo.IsInLibrary(c.Context(), mangaID)
+	exists, shelf, err := h.libraryRepo.IsInLibrary(c.Context(), mangaID)
 	if err != nil {
 		return c.Status(500).JSON(model.APIResponse{
 			Success: false,
@@ -157,15 +158,15 @@ func (h *LibraryHandler) CheckLibrary(c *fiber.Ctx) error {
 		Success: true,
 		Data: fiber.Map{
 			"inLibrary": exists,
-			"shelf":     category,
-			"category":  category,
+			"shelf":     shelf,
+			"category":  shelf,
 		},
 	})
 }
 
-
-// GetHistory handles GET /api/history/:mangaId
-func (h *LibraryHandler) GetHistory(c *fiber.Ctx) error {
+// GetReadingProgress handles GET /api/progress/:mangaId.
+// The /history route remains as a backward compatibility alias.
+func (h *LibraryHandler) GetReadingProgress(c *fiber.Ctx) error {
 	mangaID := c.Params("mangaId")
 	if mangaID == "" {
 		return c.Status(400).JSON(model.APIResponse{
@@ -174,7 +175,7 @@ func (h *LibraryHandler) GetHistory(c *fiber.Ctx) error {
 		})
 	}
 
-	history, err := h.historyRepo.GetByManga(c.Context(), mangaID)
+	progress, err := h.historyRepo.GetByManga(c.Context(), mangaID)
 	if err != nil && err != pgx.ErrNoRows {
 		return c.Status(500).JSON(model.APIResponse{
 			Success: false,
@@ -184,14 +185,15 @@ func (h *LibraryHandler) GetHistory(c *fiber.Ctx) error {
 
 	return c.JSON(model.APIResponse{
 		Success: true,
-		Data:    history,
+		Data:    progress,
 	})
 }
 
-// GetAllHistory handles GET /api/history
-func (h *LibraryHandler) GetAllHistory(c *fiber.Ctx) error {
+// GetAllReadingProgress handles GET /api/progress.
+// The /history route remains as a backward compatibility alias.
+func (h *LibraryHandler) GetAllReadingProgress(c *fiber.Ctx) error {
 	limit, _ := strconv.Atoi(c.Query("limit", "50"))
-	history, err := h.historyRepo.GetAll(c.Context(), limit)
+	progress, err := h.historyRepo.GetAll(c.Context(), limit)
 	if err != nil && err != pgx.ErrNoRows {
 		return c.Status(500).JSON(model.APIResponse{
 			Success: false,
@@ -201,13 +203,14 @@ func (h *LibraryHandler) GetAllHistory(c *fiber.Ctx) error {
 
 	return c.JSON(model.APIResponse{
 		Success: true,
-		Data:    history,
+		Data:    progress,
 	})
 }
 
-// UpdateHistory handles PUT /api/history
-func (h *LibraryHandler) UpdateHistory(c *fiber.Ctx) error {
-	var req model.UpdateHistoryRequest
+// UpdateReadingProgress handles PUT /api/progress.
+// The /history route remains as a backward compatibility alias.
+func (h *LibraryHandler) UpdateReadingProgress(c *fiber.Ctx) error {
+	var req model.UpdateReadingProgressRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(400).JSON(model.APIResponse{
 			Success: false,
@@ -249,4 +252,3 @@ func (h *LibraryHandler) GetReadingStats(c *fiber.Ctx) error {
 		Data:    stats,
 	})
 }
-

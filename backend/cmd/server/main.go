@@ -59,7 +59,6 @@ func main() {
 		}
 	}
 
-
 	// Initialize repositories
 	translationRepo := repository.NewTranslationRepository(pool)
 	libraryRepo := repository.NewLibraryRepository(pool)
@@ -113,20 +112,19 @@ func main() {
 	// Library routes
 	api.Get("/library", libraryHandler.GetLibrary)
 	api.Post("/library", libraryHandler.AddToLibrary)
-	api.Patch("/library/:mangaId/shelf", libraryHandler.UpdateCategory)
-	api.Patch("/library/:mangaId/category", libraryHandler.UpdateCategory)
+	api.Patch("/library/:mangaId/shelf", libraryHandler.UpdateShelf)
+	api.Patch("/library/:mangaId/category", libraryHandler.UpdateShelf)
 	api.Delete("/library/:mangaId", libraryHandler.RemoveFromLibrary)
 	api.Get("/library/:mangaId/check", libraryHandler.CheckLibrary)
 
 	// Reading Progress & Stats routes
-	api.Get("/progress", libraryHandler.GetAllHistory)
-	api.Get("/progress/:mangaId", libraryHandler.GetHistory)
-	api.Put("/progress", libraryHandler.UpdateHistory)
-	api.Get("/history", libraryHandler.GetAllHistory)
-	api.Get("/history/:mangaId", libraryHandler.GetHistory)
-	api.Put("/history", libraryHandler.UpdateHistory)
+	api.Get("/progress", libraryHandler.GetAllReadingProgress)
+	api.Get("/progress/:mangaId", libraryHandler.GetReadingProgress)
+	api.Put("/progress", libraryHandler.UpdateReadingProgress)
+	api.Get("/history", libraryHandler.GetAllReadingProgress)
+	api.Get("/history/:mangaId", libraryHandler.GetReadingProgress)
+	api.Put("/history", libraryHandler.UpdateReadingProgress)
 	api.Get("/stats", libraryHandler.GetReadingStats)
-
 
 	// Start server
 	addr := fmt.Sprintf(":%s", cfg.Port)

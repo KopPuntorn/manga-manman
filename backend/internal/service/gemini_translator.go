@@ -15,9 +15,6 @@ import (
 	"github.com/manga-manman/backend/internal/model"
 )
 
-
-
-
 type GeminiTranslator struct {
 	apiKeys  []string
 	keyIndex uint64
@@ -118,31 +115,31 @@ func (g *GeminiTranslator) TranslatePage(ctx context.Context, imageURL string) (
 Carefully examine this manga page image.
 
 STRICT INSTRUCTIONS:
-1. Detect ONLY dialogue, speech, and narration inside:
-   - Speech bubbles (oval, round, spiky, screaming bubbles)
-   - Thought clouds (internal monologue)
+1. Detect ONLY reader-facing Text Blocks:
+   - Dialogue text in speech bubbles
+   - Thought text / internal monologue
    - Rectangular narrator / caption boxes
-2. DO NOT detect or translate sound effects (SFX / onomatopoeia), background sound words, or author credits.
-3. For each dialogue / narration bubble:
-   - Transcribe the original dialogue text.
+2. DO NOT detect or translate decorative sound effects (SFX / onomatopoeia), background sound words, or author credits.
+3. For each Text Block:
+   - Transcribe the Source Text.
    - Translate accurately into fluent, natural, engaging Thai manga dialogue.
-   - Detect the FULL BOUNDING BOX of the entire speech bubble area using box_2d [ymin, xmin, ymax, xmax] (normalized 0 to 1000 scale) so the Thai overlay can perfectly fit and fully cover the original text area:
-     * ymin: top edge of bubble (0 to 1000)
-     * xmin: left edge of bubble (0 to 1000)
-     * ymax: bottom edge of bubble (0 to 1000)
-     * xmax: right edge of bubble (0 to 1000)
+   - Detect the FULL BOUNDING BOX of the entire Text Block area using box_2d [ymin, xmin, ymax, xmax] (normalized 0 to 1000 scale) so the Thai overlay can fit the source text area:
+     * ymin: top edge of Text Block (0 to 1000)
+     * xmin: left edge of Text Block (0 to 1000)
+     * ymax: bottom edge of Text Block (0 to 1000)
+     * xmax: right edge of Text Block (0 to 1000)
 
 Return ONLY valid JSON matching this schema:
 {
   "texts": [
     {
-      "original": "original dialogue",
+      "original": "Source Text",
       "thai": "คำแปลภาษาไทยที่เป็นธรรมชาติและสละสลวย",
       "box_2d": [180, 240, 290, 360]
     }
   ]
 }
-If no dialogue bubbles exist on this page, return {"texts": []}.`
+If no reader-facing Text Blocks exist on this page, return {"texts": []}.`
 
 	reqBody := map[string]interface{}{
 		"contents": []map[string]interface{}{
@@ -161,7 +158,7 @@ If no dialogue bubbles exist on this page, return {"texts": []}.`
 			},
 		},
 		"generationConfig": map[string]interface{}{
-			"temperature":     0.1,
+			"temperature":      0.1,
 			"responseMimeType": "application/json",
 		},
 	}
@@ -232,9 +229,6 @@ If no dialogue bubbles exist on this page, return {"texts": []}.`
 
 Parsing:
 
-
-
-
 	var geminiResp struct {
 		Candidates []struct {
 			Content struct {
@@ -269,7 +263,6 @@ Parsing:
 			Height   float64     `json:"height"`
 		} `json:"texts"`
 	}
-
 
 	if err := json.Unmarshal([]byte(text), &rawResult); err != nil {
 		// If unmarshal fails on textless responses, return clean empty result
@@ -327,7 +320,6 @@ Parsing:
 			}
 		}
 
-
 		// Clamp bounds safely
 		if tb.X < 0 {
 			tb.X = 0
@@ -350,7 +342,6 @@ Parsing:
 
 		result.Texts = append(result.Texts, tb)
 	}
-
 
 	return &result, nil
 }
@@ -424,6 +415,3 @@ func sanitizeJSONString(s string) string {
 	}
 	return strings.Join(lines, "\n")
 }
-
-
-

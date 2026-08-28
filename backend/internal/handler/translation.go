@@ -2,6 +2,8 @@ package handler
 
 import (
 	"log"
+	"strconv"
+	"sync"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/jackc/pgx/v5"
@@ -13,6 +15,13 @@ import (
 type TranslationHandler struct {
 	translator service.Translator
 	repo       *repository.TranslationRepository
+	inFlight   sync.Map
+}
+
+type translationCall struct {
+	done        chan struct{}
+	err         error
+	translation *model.Translation
 }
 
 func NewTranslationHandler(translator service.Translator, repo *repository.TranslationRepository) *TranslationHandler {
@@ -49,10 +58,44 @@ func (h *TranslationHandler) TranslatePage(c *fiber.Ctx) error {
 		})
 	}
 
+	key := req.ChapterID + ":" + strconv.Itoa(req.PageIndex)
+	call := &translationCall{done: make(chan struct{})}
+	actual, loaded := h.inFlight.LoadOrStore(key, call)
+	if loaded {
+		inFlight := actual.(*translationCall)
+		<-inFlight.done
+		if inFlight.err != nil {
+			return c.Status(500).JSON(model.APIResponse{
+				Success: false,
+				Error:   "translation failed: " + inFlight.err.Error(),
+			})
+		}
+		cached, err := h.repo.GetByPage(c.Context(), req.ChapterID, req.PageIndex)
+		if err == nil && cached != nil {
+			return c.JSON(model.APIResponse{
+				Success: true,
+				Data:    cached,
+			})
+		}
+		if inFlight.translation != nil {
+			return c.JSON(model.APIResponse{
+				Success: true,
+				Data:    inFlight.translation,
+			})
+		}
+	}
+	if !loaded {
+		defer func() {
+			close(call.done)
+			h.inFlight.Delete(key)
+		}()
+	}
+
 	// Call translator
 	log.Printf("🔄 Translating: chapter=%s page=%d", req.ChapterID, req.PageIndex)
 	result, err := h.translator.TranslatePage(c.Context(), req.ImageURL)
 	if err != nil {
+		call.err = err
 		log.Printf("❌ Translation error: %v", err)
 		return c.Status(500).JSON(model.APIResponse{
 			Success: false,
@@ -67,6 +110,7 @@ func (h *TranslationHandler) TranslatePage(c *fiber.Ctx) error {
 		Result:    *result,
 		Provider:  h.translator.Provider(),
 	}
+	call.translation = translation
 
 	if err := h.repo.Save(c.Context(), translation); err != nil {
 		log.Printf("⚠️ Failed to cache translation: %v", err)
@@ -97,6 +141,7 @@ func (h *TranslationHandler) GetChapterTranslations(c *fiber.Ctx) error {
 		})
 	}
 
+	c.Set("Cache-Control", "private, max-age=30")
 	return c.JSON(model.APIResponse{
 		Success: true,
 		Data:    translations,
@@ -139,4 +184,3 @@ func (h *TranslationHandler) UpdateTranslation(c *fiber.Ctx) error {
 		},
 	})
 }
-

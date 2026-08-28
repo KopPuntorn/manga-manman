@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { searchMangaFiltered, MangaSearchResult, getTags, MangaTag } from '@/lib/api';
+import { searchMangaFiltered, MangaSearchResult } from '@/lib/api';
 import Link from 'next/link';
 
 // Curated popular Manga tags with Thai labels & emojis
@@ -119,16 +119,23 @@ export default function HomePage() {
 
   // Initial load: parse URL query or fetch Popular Manga
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const urlParams = new URLSearchParams(window.location.search);
-      const urlQuery = urlParams.get('q');
-      if (urlQuery) {
-        setQuery(urlQuery);
-        executeSearch(urlQuery, '', '', 'all', 'relevance', false, 0);
-        return;
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      if (typeof window !== 'undefined') {
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlQuery = urlParams.get('q');
+        if (urlQuery) {
+          setQuery(urlQuery);
+          executeSearch(urlQuery, '', '', 'all', 'relevance', false, 0);
+          return;
+        }
       }
-    }
-    executeSearch('', '', '', 'all', 'followedCount', false, 0);
+      executeSearch('', '', '', 'all', 'followedCount', false, 0);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [executeSearch]);
 
   // Submit search form

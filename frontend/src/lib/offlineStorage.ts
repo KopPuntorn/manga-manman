@@ -1,4 +1,6 @@
 // IndexedDB client-side offline chapter and translation storage
+import type { Translation } from './api';
+
 const DB_NAME = 'manga_manman_offline';
 const DB_VERSION = 1;
 const STORE_NAME = 'chapters';
@@ -9,7 +11,7 @@ export interface OfflineChapter {
   mangaTitle: string;
   chapterNumber: string;
   pages: string[]; // Base64 data URLs or cached URLs
-  translations: Record<number, any>;
+  translations: Record<number, Translation>;
   savedAt: string;
   sizeBytes?: number;
 }
@@ -41,7 +43,7 @@ export async function saveOfflineChapter(
   mangaTitle: string,
   chapterNumber: string,
   pages: string[],
-  translations: Record<number, any>
+  translations: Record<number, Translation>
 ): Promise<void> {
   const db = await openDB();
   return new Promise((resolve, reject) => {

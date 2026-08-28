@@ -15,7 +15,7 @@ func NewHistoryRepository(pool *pgxpool.Pool) *HistoryRepository {
 	return &HistoryRepository{pool: pool}
 }
 
-func (r *HistoryRepository) GetByManga(ctx context.Context, mangaID string) ([]model.ReadingHistory, error) {
+func (r *HistoryRepository) GetByManga(ctx context.Context, mangaID string) ([]model.ReadingProgress, error) {
 	rows, err := r.pool.Query(ctx,
 		`SELECT id, manga_id, chapter_id, page_index, updated_at
 		 FROM reading_history WHERE manga_id = $1 ORDER BY updated_at DESC`,
@@ -26,22 +26,22 @@ func (r *HistoryRepository) GetByManga(ctx context.Context, mangaID string) ([]m
 	}
 	defer rows.Close()
 
-	var history []model.ReadingHistory
+	var progress []model.ReadingProgress
 	for rows.Next() {
-		var h model.ReadingHistory
+		var h model.ReadingProgress
 		if err := rows.Scan(&h.ID, &h.MangaID, &h.ChapterID, &h.PageIndex, &h.UpdatedAt); err != nil {
 			return nil, err
 		}
-		history = append(history, h)
+		progress = append(progress, h)
 	}
 
-	if history == nil {
-		history = []model.ReadingHistory{}
+	if progress == nil {
+		progress = []model.ReadingProgress{}
 	}
-	return history, nil
+	return progress, nil
 }
 
-func (r *HistoryRepository) Upsert(ctx context.Context, req model.UpdateHistoryRequest) error {
+func (r *HistoryRepository) Upsert(ctx context.Context, req model.UpdateReadingProgressRequest) error {
 	_, err := r.pool.Exec(ctx,
 		`INSERT INTO reading_history (manga_id, chapter_id, page_index)
 		 VALUES ($1, $2, $3)
@@ -52,7 +52,7 @@ func (r *HistoryRepository) Upsert(ctx context.Context, req model.UpdateHistoryR
 	return err
 }
 
-func (r *HistoryRepository) GetAll(ctx context.Context, limit int) ([]model.GlobalHistoryEntry, error) {
+func (r *HistoryRepository) GetAll(ctx context.Context, limit int) ([]model.GlobalReadingProgressEntry, error) {
 	if limit <= 0 {
 		limit = 50
 	}
@@ -70,19 +70,19 @@ func (r *HistoryRepository) GetAll(ctx context.Context, limit int) ([]model.Glob
 	}
 	defer rows.Close()
 
-	var history []model.GlobalHistoryEntry
+	var progress []model.GlobalReadingProgressEntry
 	for rows.Next() {
-		var h model.GlobalHistoryEntry
+		var h model.GlobalReadingProgressEntry
 		if err := rows.Scan(&h.ID, &h.MangaID, &h.ChapterID, &h.PageIndex, &h.UpdatedAt, &h.Title, &h.CoverURL); err != nil {
 			return nil, err
 		}
-		history = append(history, h)
+		progress = append(progress, h)
 	}
 
-	if history == nil {
-		history = []model.GlobalHistoryEntry{}
+	if progress == nil {
+		progress = []model.GlobalReadingProgressEntry{}
 	}
-	return history, nil
+	return progress, nil
 }
 
 func (r *HistoryRepository) GetStats(ctx context.Context) (*model.ReadingStats, error) {
@@ -92,31 +92,30 @@ func (r *HistoryRepository) GetStats(ctx context.Context) (*model.ReadingStats, 
 		totalRead = 0
 	}
 
-	var totalBookmarked int
-	err = r.pool.QueryRow(ctx, `SELECT COUNT(*) FROM library`).Scan(&totalBookmarked)
+	var totalLibraryEntries int
+	err = r.pool.QueryRow(ctx, `SELECT COUNT(*) FROM library`).Scan(&totalLibraryEntries)
 	if err != nil {
-		totalBookmarked = 0
+		totalLibraryEntries = 0
 	}
 
-	categoriesCount := make(map[string]int)
+	shelvesCount := make(map[string]int)
 	rows, err := r.pool.Query(ctx, `SELECT category, COUNT(*) FROM library GROUP BY category`)
 	if err == nil {
 		defer rows.Close()
 		for rows.Next() {
-			var cat string
+			var shelf string
 			var count int
-			if err := rows.Scan(&cat, &count); err == nil {
-				categoriesCount[cat] = count
+			if err := rows.Scan(&shelf, &count); err == nil {
+				shelvesCount[shelf] = count
 			}
 		}
 	}
 
 	return &model.ReadingStats{
 		TotalChaptersRead:   totalRead,
-		TotalLibraryEntries: totalBookmarked,
-		TotalBookmarked:     totalBookmarked,
-		ShelvesCount:        categoriesCount,
-		CategoriesCount:     categoriesCount,
+		TotalLibraryEntries: totalLibraryEntries,
+		TotalBookmarked:     totalLibraryEntries,
+		ShelvesCount:        shelvesCount,
+		CategoriesCount:     shelvesCount,
 	}, nil
 }
-

@@ -50,7 +50,7 @@ export default function ReaderPage() {
   const [fontFamily, setFontFamily] = useState<ThaiFontFamily>('font-prompt');
   const [fontScale, setFontScale] = useState<number>(100); // 80 to 140%
   const [bubbleOpacity, setBubbleOpacity] = useState<number>(100); // 60 to 100%
-  const [showControls, setShowControls] = useState(true);
+  const [showControls] = useState(true);
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [showSettingsDrawer, setShowSettingsDrawer] = useState(false);
 
@@ -66,7 +66,7 @@ export default function ReaderPage() {
   const [translatingAll, setTranslatingAll] = useState(false);
   const [translateProgress, setTranslateProgress] = useState({ current: 0, total: 0 });
 
-  // Edit Translation Bubble Modal
+  // Edit Translation Block Modal
   const [editingBlock, setEditingBlock] = useState<{
     pageIndex: number;
     blockIndex: number;
@@ -82,22 +82,29 @@ export default function ReaderPage() {
 
   // Restore Reader Preferences from localStorage
   useEffect(() => {
-    try {
-      const savedMode = localStorage.getItem('reader_mode') as ReadingMode;
-      if (savedMode) setReadingMode(savedMode);
-      const savedTransMode = localStorage.getItem('reader_trans_mode') as TranslationMode;
-      if (savedTransMode) setTranslationMode(savedTransMode);
-      const savedFont = localStorage.getItem('reader_font') as ThaiFontFamily;
-      if (savedFont) setFontFamily(savedFont);
-      const savedScale = localStorage.getItem('reader_font_scale');
-      if (savedScale) setFontScale(Number(savedScale));
-      const savedOpacity = localStorage.getItem('reader_bubble_opacity');
-      if (savedOpacity) setBubbleOpacity(Number(savedOpacity));
-      const savedTheme = localStorage.getItem('reader_bubble_theme') as 'manga' | 'soft' | 'dark';
-      if (savedTheme) setBubbleTheme(savedTheme);
-      const savedSize = localStorage.getItem('reader_bubble_size') as 'sm' | 'md' | 'lg';
-      if (savedSize) setBubbleSize(savedSize);
-    } catch {}
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      try {
+        const savedMode = localStorage.getItem('reader_mode') as ReadingMode;
+        if (savedMode) setReadingMode(savedMode);
+        const savedTransMode = localStorage.getItem('reader_trans_mode') as TranslationMode;
+        if (savedTransMode) setTranslationMode(savedTransMode);
+        const savedFont = localStorage.getItem('reader_font') as ThaiFontFamily;
+        if (savedFont) setFontFamily(savedFont);
+        const savedScale = localStorage.getItem('reader_font_scale');
+        if (savedScale) setFontScale(Number(savedScale));
+        const savedOpacity = localStorage.getItem('reader_bubble_opacity');
+        if (savedOpacity) setBubbleOpacity(Number(savedOpacity));
+        const savedTheme = localStorage.getItem('reader_bubble_theme') as 'manga' | 'soft' | 'dark';
+        if (savedTheme) setBubbleTheme(savedTheme);
+        const savedSize = localStorage.getItem('reader_bubble_size') as 'sm' | 'md' | 'lg';
+        if (savedSize) setBubbleSize(savedSize);
+      } catch {}
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Save Preferences to localStorage
@@ -142,13 +149,21 @@ export default function ReaderPage() {
   // Load chapter pages & cached translations (IndexedDB -> LocalStorage -> Backend)
   useEffect(() => {
     if (!chapterId) return;
+    let cancelled = false;
+    let hasLoadedPages = false;
 
     // Check offline status
-    isChapterOffline(chapterId).then(setIsOfflineSaved).catch(() => {});
+    isChapterOffline(chapterId)
+      .then((saved) => {
+        if (!cancelled) setIsOfflineSaved(saved);
+      })
+      .catch(() => {});
 
     // 1. Instant check IndexedDB / LocalStorage (0ms)
     getOfflineChapter(chapterId).then((offlineData) => {
+      if (cancelled) return;
       if (offlineData && offlineData.pages.length > 0) {
+        hasLoadedPages = true;
         setPages(offlineData.pages);
         if (offlineData.translations) {
           setTranslations(offlineData.translations);
@@ -157,37 +172,50 @@ export default function ReaderPage() {
       }
     });
 
-    try {
-      const localPages = localStorage.getItem(`manga_pages_${chapterId}`);
-      if (localPages) {
-        const parsed = JSON.parse(localPages);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setPages(parsed);
-          setLoading(false);
+    queueMicrotask(() => {
+      if (cancelled) return;
+      try {
+        const localPages = localStorage.getItem(`manga_pages_${chapterId}`);
+        if (localPages) {
+          const parsed = JSON.parse(localPages);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            hasLoadedPages = true;
+            setPages(parsed);
+            setLoading(false);
+          }
         }
-      }
-      const localTrans = localStorage.getItem(`manga_trans_${chapterId}`);
-      if (localTrans) {
-        const parsed = JSON.parse(localTrans);
-        if (parsed && typeof parsed === 'object') {
-          setTranslations(parsed);
+        const localTrans = localStorage.getItem(`manga_trans_${chapterId}`);
+        if (localTrans) {
+          const parsed = JSON.parse(localTrans);
+          if (parsed && typeof parsed === 'object') {
+            setTranslations(parsed);
+          }
         }
-      }
-    } catch {}
+      } catch {}
+    });
 
     const fetchPages = async () => {
       try {
-        const data = await getChapterPages(chapterId);
-        setPages(data.pages);
-        try {
-          localStorage.setItem(`manga_pages_${chapterId}`, JSON.stringify(data.pages));
-        } catch {}
+        const [pagesResult, translationsResult] = await Promise.allSettled([
+          getChapterPages(chapterId),
+          getChapterTranslations(chapterId),
+        ]);
 
-        // Load backend cached translations
-        try {
-          const cached = await getChapterTranslations(chapterId);
+        if (cancelled) return;
+
+        if (pagesResult.status === 'fulfilled') {
+          hasLoadedPages = true;
+          setPages(pagesResult.value.pages);
+          try {
+            localStorage.setItem(`manga_pages_${chapterId}`, JSON.stringify(pagesResult.value.pages));
+          } catch {}
+        } else if (!hasLoadedPages) {
+          setError(pagesResult.reason instanceof Error ? pagesResult.reason.message : 'Failed to load chapter');
+        }
+
+        if (translationsResult.status === 'fulfilled') {
           const map: Record<number, Translation> = {};
-          cached.forEach((t) => {
+          translationsResult.value.forEach((t) => {
             map[t.pageIndex] = t;
           });
           setTranslations((prev) => {
@@ -197,30 +225,34 @@ export default function ReaderPage() {
             } catch {}
             return merged;
           });
-        } catch {}
-      } catch (err) {
-        // If we don't have offline pages and network failed
-        if (pages.length === 0) {
-          setError(err instanceof Error ? err.message : 'Failed to load chapter');
         }
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
 
     fetchPages();
+    return () => {
+      cancelled = true;
+    };
   }, [chapterId]);
 
   // Phase 1: High-Performance Image Preloader for Adjacent Pages
   useEffect(() => {
     if (pages.length === 0) return;
     const toPreload = [currentPage + 1, currentPage + 2, currentPage + 3, currentPage - 1];
-    toPreload.forEach((idx) => {
+    const preload = () => toPreload.forEach((idx) => {
       if (idx >= 0 && idx < pages.length && pages[idx]) {
         const img = new Image();
+        img.decoding = 'async';
         img.src = pages[idx];
+        img.decode?.().catch(() => {});
       }
     });
+    const requestIdle = window.requestIdleCallback || ((cb: IdleRequestCallback) => window.setTimeout(cb, 1));
+    const cancelIdle = window.cancelIdleCallback || window.clearTimeout;
+    const idleId = requestIdle(preload);
+    return () => cancelIdle(idleId);
   }, [currentPage, pages]);
 
   // Translate a specific page with automatic cooldown and error recovery
@@ -316,14 +348,20 @@ export default function ReaderPage() {
 
   // Auto-translate current page
   useEffect(() => {
+    let cancelled = false;
     if (
       translationMode !== 'off' &&
       pages.length > 0 &&
       !translations[currentPage] &&
       !failedPages.has(currentPage)
     ) {
-      translateSpecificPage(currentPage, false);
+      queueMicrotask(() => {
+        if (!cancelled) translateSpecificPage(currentPage, false);
+      });
     }
+    return () => {
+      cancelled = true;
+    };
   }, [currentPage, translationMode, pages.length, translations, failedPages, translateSpecificPage]);
 
   // Phase 1: Background Translation Queue for Upcoming Pages (N+1, N+2)
@@ -507,7 +545,7 @@ export default function ReaderPage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [editingBlock, goToNextPage, goToPrevPage, translationMode, readingMode]);
 
-  // Handle Edit Bubble
+  // Handle Edit Translation Block
   const handleOpenEdit = (pageIdx: number, blockIdx: number, block: TextBlock) => {
     setEditingBlock({ pageIndex: pageIdx, blockIndex: blockIdx, block });
     setEditThaiText(block.thai);
@@ -1246,7 +1284,7 @@ function TranslationOverlay({
         return (
           <div
             key={idx}
-            className={`translation-bubble theme-${theme} size-${size} mode-${mode}`}
+            className={`text-block theme-${theme} size-${size} mode-${mode}`}
             style={{
               left: `${leftPercent}%`,
               top: `${topPercent}%`,

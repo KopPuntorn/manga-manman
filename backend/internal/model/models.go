@@ -133,13 +133,13 @@ type AddToLibraryRequest struct {
 }
 
 // UpdateShelfRequest payload to update the Library Shelf for a Library Entry.
-type UpdateCategoryRequest struct {
+type UpdateShelfRequest struct {
 	Category string `json:"category,omitempty"`
 	Shelf    string `json:"shelf,omitempty"`
 }
 
-// UpdateShelfRequest is an alias for UpdateCategoryRequest.
-type UpdateShelfRequest = UpdateCategoryRequest
+// UpdateCategoryRequest is an alias for backward compatibility.
+type UpdateCategoryRequest = UpdateShelfRequest
 
 // --- Reading Progress Domain Models ---
 
@@ -152,7 +152,7 @@ type ReadingProgress struct {
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
-// ReadingHistory is an alias for ReadingProgress for backward compatibility.
+// ReadingHistory is an alias for backward compatibility.
 type ReadingHistory = ReadingProgress
 
 // GlobalReadingProgressEntry represents a resume entry for the Reader with Manga details.
@@ -166,7 +166,7 @@ type GlobalReadingProgressEntry struct {
 	CoverURL  string    `json:"coverUrl,omitempty"`
 }
 
-// GlobalHistoryEntry is an alias for GlobalReadingProgressEntry for backward compatibility.
+// GlobalHistoryEntry is an alias for backward compatibility.
 type GlobalHistoryEntry = GlobalReadingProgressEntry
 
 // ReadingStats contains library and progress metrics for the Reader.
@@ -185,7 +185,7 @@ type UpdateReadingProgressRequest struct {
 	PageIndex int    `json:"pageIndex"`
 }
 
-// UpdateHistoryRequest is an alias for UpdateReadingProgressRequest.
+// UpdateHistoryRequest is an alias for backward compatibility.
 type UpdateHistoryRequest = UpdateReadingProgressRequest
 
 // --- API Response ---
@@ -195,5 +195,3 @@ type APIResponse struct {
 	Data    interface{} `json:"data,omitempty"`
 	Error   string      `json:"error,omitempty"`
 }
-
-

@@ -39,10 +39,10 @@ func (r *LibraryRepository) GetAll(ctx context.Context) ([]model.LibraryEntry, e
 	return entries, nil
 }
 
-func (r *LibraryRepository) GetByCategory(ctx context.Context, category string) ([]model.LibraryEntry, error) {
+func (r *LibraryRepository) GetByShelf(ctx context.Context, shelf string) ([]model.LibraryEntry, error) {
 	rows, err := r.pool.Query(ctx,
 		`SELECT id, manga_id, title, cover_url, COALESCE(category, 'reading'), added_at 
-		 FROM library WHERE category = $1 ORDER BY added_at DESC`, category)
+		 FROM library WHERE category = $1 ORDER BY added_at DESC`, shelf)
 	if err != nil {
 		return nil, err
 	}
@@ -88,10 +88,10 @@ func (r *LibraryRepository) Add(ctx context.Context, req model.AddToLibraryReque
 	return &entry, nil
 }
 
-func (r *LibraryRepository) UpdateCategory(ctx context.Context, mangaID string, category string) error {
+func (r *LibraryRepository) UpdateShelf(ctx context.Context, mangaID string, shelf string) error {
 	_, err := r.pool.Exec(ctx,
 		`UPDATE library SET category = $2 WHERE manga_id = $1`,
-		mangaID, category,
+		mangaID, shelf,
 	)
 	return err
 }
@@ -102,13 +102,12 @@ func (r *LibraryRepository) Remove(ctx context.Context, mangaID string) error {
 }
 
 func (r *LibraryRepository) IsInLibrary(ctx context.Context, mangaID string) (bool, string, error) {
-	var category string
+	var shelf string
 	err := r.pool.QueryRow(ctx,
 		`SELECT COALESCE(category, 'reading') FROM library WHERE manga_id = $1`, mangaID,
-	).Scan(&category)
+	).Scan(&shelf)
 	if err != nil {
 		return false, "", nil
 	}
-	return true, category, nil
+	return true, shelf, nil
 }
-

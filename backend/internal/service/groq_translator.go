@@ -76,10 +76,9 @@ func (g *GroqTranslator) TranslatePage(ctx context.Context, imageURL string) (*m
 	base64Data := base64.StdEncoding.EncodeToString(compressedBytes)
 	dataURI := fmt.Sprintf("data:image/jpeg;base64,%s", base64Data)
 
-
 	prompt := `You are a manga translation expert. Analyze this manga page image and:
-1. Find ALL text/dialogue in speech bubbles, thought bubbles, sound effects, and narration boxes
-2. Read the original text (usually Japanese)
+1. Find ALL Text Blocks on the page: dialogue, thought text, sound effects, narration boxes, signs, and captions
+2. Read the Source Text (usually Japanese)
 3. Translate each text block to Thai
 4. Estimate the position of each text block as relative coordinates (0-1 range, where 0,0 is top-left)
 
@@ -87,7 +86,7 @@ Return ONLY a valid JSON object with this exact structure, no markdown, no expla
 {
   "texts": [
     {
-      "original": "original text here",
+      "original": "Source Text here",
       "thai": "Thai translation here",
       "x": 0.32,
       "y": 0.18,
@@ -102,7 +101,7 @@ Rules:
 - width, height are the size of the text block (0-1 relative to image dimensions)
 - Include ALL visible text, even small sound effects
 - If there is no text on the page, return {"texts": []}
-- Translate naturally and colloquially to Thai, keeping the tone/emotion of the original
+- Translate naturally and colloquially to Thai, keeping the tone/emotion of the Source Text
 - Return ONLY the JSON, nothing else`
 
 	reqBody := map[string]interface{}{
@@ -282,5 +281,3 @@ func optimizeMangaImage(imgBytes []byte, maxWidth int) ([]byte, error) {
 
 	return buf.Bytes(), nil
 }
-
-

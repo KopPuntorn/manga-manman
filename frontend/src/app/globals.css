@@ -832,7 +832,8 @@ body:has(.reader-wrapper) .main-content {
   box-shadow: 0 0 0 3px #ffffff, 0 3px 12px rgba(0, 0, 0, 0.4);
 }
 
-.translation-bubble.theme-soft {
+.translation-bubble.theme-soft,
+.text-block.theme-soft {
   background: rgba(255, 255, 255, 0.95);
   color: #0f172a;
   backdrop-filter: blur(8px);
@@ -840,7 +841,8 @@ body:has(.reader-wrapper) .main-content {
   box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.8), 0 3px 10px rgba(0, 0, 0, 0.25);
 }
 
-.translation-bubble.theme-dark {
+.translation-bubble.theme-dark,
+.text-block.theme-dark {
   background: #090d16 !important;
   color: #f8fafc !important;
   backdrop-filter: blur(10px);
@@ -850,38 +852,45 @@ body:has(.reader-wrapper) .main-content {
 
 
 /* Font Size Scales */
-.translation-bubble.size-sm {
+.translation-bubble.size-sm,
+.text-block.size-sm {
   font-size: 0.76rem;
   padding: 4px 7px;
 }
 
-.translation-bubble.size-md {
+.translation-bubble.size-md,
+.text-block.size-md {
   font-size: 0.90rem;
   padding: 5px 9px;
 }
 
-.translation-bubble.size-lg {
+.translation-bubble.size-lg,
+.text-block.size-lg {
   font-size: 1.08rem;
   padding: 7px 12px;
 }
 
 
-.translation-bubble.mode-sidebyside {
+.translation-bubble.mode-sidebyside,
+.text-block.mode-sidebyside {
   border-color: #0284c7;
 }
 
-.translation-bubble.mode-original {
+.translation-bubble.mode-original,
+.text-block.mode-original {
   background: #f1f5f9;
   color: #334155;
   border-color: #64748b;
 }
 
-.translation-bubble .thai-text {
+.translation-bubble .thai-text,
+.text-block .thai-text {
   font-weight: 700;
   width: 100%;
 }
 
-.translation-bubble .original-text {
+.translation-bubble .original-text,
+.text-block .original-text {
   font-size: 0.72rem;
   font-weight: 500;
   color: #64748b;
@@ -891,12 +900,14 @@ body:has(.reader-wrapper) .main-content {
   width: 100%;
 }
 
-.translation-bubble.theme-dark .original-text {
+.translation-bubble.theme-dark .original-text,
+.text-block.theme-dark .original-text {
   color: #94a3b8;
   border-top-color: rgba(255, 255, 255, 0.2);
 }
 
-.translation-bubble .edit-badge {
+.translation-bubble .edit-badge,
+.text-block .edit-badge {
   position: absolute;
   top: -8px;
   right: -8px;
@@ -911,7 +922,8 @@ body:has(.reader-wrapper) .main-content {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
-.translation-bubble:hover .edit-badge {
+.translation-bubble:hover .edit-badge,
+.text-block:hover .edit-badge {
   opacity: 1;
 }
 
@@ -1119,8 +1131,8 @@ body:has(.reader-wrapper) .main-content {
   font-weight: 600;
 }
 
-/* === Category Tabs & Badges === */
-.category-tabs {
+/* === Shelf Tabs & Badges === */
+.shelf-tabs {
   display: flex;
   gap: 8px;
   border-bottom: 1px solid var(--border-color);
@@ -1129,7 +1141,7 @@ body:has(.reader-wrapper) .main-content {
   overflow-x: auto;
 }
 
-.category-tab {
+.shelf-tab {
   padding: 8px 16px;
   border-radius: var(--radius-md);
   font-size: 0.85rem;
@@ -1141,19 +1153,19 @@ body:has(.reader-wrapper) .main-content {
   white-space: nowrap;
 }
 
-.category-tab:hover {
+.shelf-tab:hover {
   background: var(--bg-card);
   color: var(--text-primary);
 }
 
-.category-tab.active {
+.shelf-tab.active {
   background: var(--bg-card);
   color: var(--accent-primary);
   font-weight: 700;
   border: 1px solid var(--border-color);
 }
 
-.badge-category {
+.badge-shelf {
   display: inline-block;
   padding: 3px 8px;
   border-radius: var(--radius-sm);
@@ -1530,17 +1542,20 @@ body:has(.reader-wrapper) .main-content {
     min-width: 50px;
   }
 
-  .translation-bubble {
+  .translation-bubble,
+  .text-block {
     font-size: 0.72rem;
     padding: 4px 6px;
     border-width: 1px;
   }
 
-  .translation-bubble.size-sm {
+  .translation-bubble.size-sm,
+  .text-block.size-sm {
     font-size: 0.65rem;
   }
 
-  .translation-bubble.size-lg {
+  .translation-bubble.size-lg,
+  .text-block.size-lg {
     font-size: 0.85rem;
   }
 }
@@ -1596,27 +1611,27 @@ body:has(.reader-wrapper) .main-content {
 }
 
 /* === Custom Thai Fonts for Manga Translation === */
-.font-prompt, .font-family-prompt .translation-bubble {
+.font-prompt, .font-family-prompt .translation-bubble, .font-family-prompt .text-block {
   font-family: 'Prompt', sans-serif !important;
 }
 
-.font-kanit, .font-family-kanit .translation-bubble {
+.font-kanit, .font-family-kanit .translation-bubble, .font-family-kanit .text-block {
   font-family: 'Kanit', sans-serif !important;
 }
 
-.font-mali, .font-family-mali .translation-bubble {
+.font-mali, .font-family-mali .translation-bubble, .font-family-mali .text-block {
   font-family: 'Mali', cursive, sans-serif !important;
 }
 
-.font-itim, .font-family-itim .translation-bubble {
+.font-itim, .font-family-itim .translation-bubble, .font-family-itim .text-block {
   font-family: 'Itim', cursive, sans-serif !important;
 }
 
-.font-mitr, .font-family-mitr .translation-bubble {
+.font-mitr, .font-family-mitr .translation-bubble, .font-family-mitr .text-block {
   font-family: 'Mitr', sans-serif !important;
 }
 
-.font-baijamjuree, .font-family-baijamjuree .translation-bubble {
+.font-baijamjuree, .font-family-baijamjuree .translation-bubble, .font-family-baijamjuree .text-block {
   font-family: 'Bai Jamjuree', sans-serif !important;
 }
 
@@ -1814,4 +1829,3 @@ body:has(.reader-wrapper) .main-content {
   color: var(--accent-primary);
   text-decoration: underline;
 }
-

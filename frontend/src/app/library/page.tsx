@@ -97,15 +97,22 @@ export default function LibraryPage() {
   }, []);
 
   useEffect(() => {
-    if (mainTab === 'shelves') {
-      fetchLibrary(activeShelf);
-    } else if (mainTab === 'progress') {
-      fetchProgress();
-    } else if (mainTab === 'stats') {
-      fetchStats();
-    } else if (mainTab === 'offline') {
-      fetchOffline();
-    }
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      if (mainTab === 'shelves') {
+        fetchLibrary(activeShelf);
+      } else if (mainTab === 'progress') {
+        fetchProgress();
+      } else if (mainTab === 'stats') {
+        fetchStats();
+      } else if (mainTab === 'offline') {
+        fetchOffline();
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [mainTab, activeShelf, fetchLibrary, fetchProgress, fetchStats, fetchOffline]);
 
   const handleRemove = async (mangaId: string) => {
@@ -223,33 +230,33 @@ export default function LibraryPage() {
       {mainTab === 'shelves' && (
         <>
           {/* Shelf Tabs */}
-          <div className="category-tabs">
+          <div className="shelf-tabs">
             <button
-              className={`category-tab ${activeShelf === 'all' ? 'active' : ''}`}
+              className={`shelf-tab ${activeShelf === 'all' ? 'active' : ''}`}
               onClick={() => setActiveShelf('all')}
             >
               ทั้งหมด
             </button>
             <button
-              className={`category-tab ${activeShelf === 'reading' ? 'active' : ''}`}
+              className={`shelf-tab ${activeShelf === 'reading' ? 'active' : ''}`}
               onClick={() => setActiveShelf('reading')}
             >
               📖 กำลังอ่าน (Reading)
             </button>
             <button
-              className={`category-tab ${activeShelf === 'plan_to_read' ? 'active' : ''}`}
+              className={`shelf-tab ${activeShelf === 'plan_to_read' ? 'active' : ''}`}
               onClick={() => setActiveShelf('plan_to_read')}
             >
               📌 วางแผนจะอ่าน (Plan to Read)
             </button>
             <button
-              className={`category-tab ${activeShelf === 'completed' ? 'active' : ''}`}
+              className={`shelf-tab ${activeShelf === 'completed' ? 'active' : ''}`}
               onClick={() => setActiveShelf('completed')}
             >
               ✅ อ่านจบแล้ว (Completed)
             </button>
             <button
-              className={`category-tab ${activeShelf === 'dropped' ? 'active' : ''}`}
+              className={`shelf-tab ${activeShelf === 'dropped' ? 'active' : ''}`}
               onClick={() => setActiveShelf('dropped')}
             >
               ⏸️ พักไว้ก่อน (Dropped)
@@ -315,7 +322,7 @@ export default function LibraryPage() {
                         <select
                           value={currentShelf}
                           onChange={(e) => handleShelfChange(entry.mangaId, e.target.value)}
-                          className={`library-category-select ${getShelfBadgeClass(currentShelf)}`}
+                          className={`library-shelf-select ${getShelfBadgeClass(currentShelf)}`}
                           title="เปลี่ยนชั้นหนังสือ"
                         >
                           <option value="reading">📖 กำลังอ่าน</option>
@@ -413,11 +420,11 @@ export default function LibraryPage() {
                 </div>
                 <div className="stat-card">
                   <div className="stat-number">{(stats?.shelvesCount || stats?.categoriesCount)?.['reading'] || 0}</div>
-                  <div className="stat-label">⚡ เรื่องในชั้น "กำลังอ่าน"</div>
+                  <div className="stat-label">⚡ เรื่องในชั้น &ldquo;กำลังอ่าน&rdquo;</div>
                 </div>
                 <div className="stat-card">
                   <div className="stat-number">{(stats?.shelvesCount || stats?.categoriesCount)?.['completed'] || 0}</div>
-                  <div className="stat-label">✅ เรื่องในชั้น "อ่านจบแล้ว"</div>
+                  <div className="stat-label">✅ เรื่องในชั้น &ldquo;อ่านจบแล้ว&rdquo;</div>
                 </div>
               </div>
 
@@ -444,7 +451,7 @@ export default function LibraryPage() {
             <div className="empty-state">
               <div className="empty-state-icon">💾</div>
               <h3>ไม่มีตอนที่บันทึกออฟไลน์</h3>
-              <p>คุณสามารถกดปุ่ม "⚙️ การตั้งค่า &gt; บันทึกสำหรับอ่านออฟไลน์" ในหน้าอ่าน เพื่อโหลดเก็บไว้อ่านเวลาไม่มีเน็ตได้</p>
+              <p>คุณสามารถกดปุ่ม &ldquo;⚙️ การตั้งค่า &gt; บันทึกสำหรับอ่านออฟไลน์&rdquo; ในหน้าอ่าน เพื่อโหลดเก็บไว้อ่านเวลาไม่มีเน็ตได้</p>
             </div>
           ) : (
             <div className="history-timeline">

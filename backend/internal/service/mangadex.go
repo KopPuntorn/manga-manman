@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/manga-manman/backend/internal/model"
@@ -18,14 +19,30 @@ const (
 )
 
 type MangaDexService struct {
-	client *http.Client
+	client   *http.Client
+	cache    map[string]mangaDexCacheEntry
+	cacheMu  sync.RWMutex
+	cacheTTL time.Duration
+}
+
+type mangaDexCacheEntry struct {
+	body      []byte
+	expiresAt time.Time
 }
 
 func NewMangaDexService() *MangaDexService {
 	return &MangaDexService{
 		client: &http.Client{
+			Transport: &http.Transport{
+				MaxIdleConns:        100,
+				MaxIdleConnsPerHost: 20,
+				IdleConnTimeout:     90 * time.Second,
+				DisableCompression:  false,
+			},
 			Timeout: 30 * time.Second,
 		},
+		cache:    make(map[string]mangaDexCacheEntry),
+		cacheTTL: 2 * time.Minute,
 	}
 }
 
@@ -44,14 +61,14 @@ type mdManga struct {
 	ID         string `json:"id"`
 	Type       string `json:"type"`
 	Attributes struct {
-		Title              map[string]string            `json:"title"`
-		AltTitles          []map[string]string          `json:"altTitles"`
-		Description        map[string]string            `json:"description"`
-		Status             string                       `json:"status"`
-		Year               int                          `json:"year"`
-		ContentRating      string                       `json:"contentRating"`
-		OriginalLanguage   string                       `json:"originalLanguage"`
-		Tags               []struct {
+		Title            map[string]string   `json:"title"`
+		AltTitles        []map[string]string `json:"altTitles"`
+		Description      map[string]string   `json:"description"`
+		Status           string              `json:"status"`
+		Year             int                 `json:"year"`
+		ContentRating    string              `json:"contentRating"`
+		OriginalLanguage string              `json:"originalLanguage"`
+		Tags             []struct {
 			Attributes struct {
 				Name map[string]string `json:"name"`
 			} `json:"attributes"`
@@ -70,12 +87,12 @@ type mdChapter struct {
 	ID         string `json:"id"`
 	Type       string `json:"type"`
 	Attributes struct {
-		Chapter     string `json:"chapter"`
-		Title       string `json:"title"`
-		Volume      string `json:"volume"`
-		Pages       int    `json:"pages"`
+		Chapter            string `json:"chapter"`
+		Title              string `json:"title"`
+		Volume             string `json:"volume"`
+		Pages              int    `json:"pages"`
 		TranslatedLanguage string `json:"translatedLanguage"`
-		PublishAt   string `json:"publishAt"`
+		PublishAt          string `json:"publishAt"`
 	} `json:"attributes"`
 	Relationships []mdRelationship `json:"relationships"`
 }
@@ -289,7 +306,6 @@ func (s *MangaDexService) GetChapterListWithFilters(mangaID string, limit, offse
 		params.Set("order[chapter]", order)
 		params.Add("includes[]", "scanlation_group")
 
-
 		reqURL := fmt.Sprintf("%s/manga/%s/feed?%s", mangadexBaseURL, mangaID, params.Encode())
 		body, err := s.doGet(reqURL)
 		if err != nil {
@@ -335,7 +351,6 @@ func (s *MangaDexService) GetChapterListWithFilters(mangaID string, limit, offse
 			}
 		}
 
-
 		currentOffset += len(rawChapters)
 		if currentOffset >= resp.Total {
 			break
@@ -344,8 +359,6 @@ func (s *MangaDexService) GetChapterListWithFilters(mangaID string, limit, offse
 
 	return allChapters, totalChapters, nil
 }
-
-
 
 func (s *MangaDexService) GetChapterPages(chapterID string) (*model.ChapterPages, error) {
 	reqURL := fmt.Sprintf("%s/%s", atHomeBaseURL, chapterID)
@@ -383,6 +396,10 @@ func (s *MangaDexService) GetChapterPages(chapterID string) (*model.ChapterPages
 // --- Private helpers ---
 
 func (s *MangaDexService) doGet(url string) ([]byte, error) {
+	if body, ok := s.getCached(url); ok {
+		return body, nil
+	}
+
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
@@ -400,7 +417,50 @@ func (s *MangaDexService) doGet(url string) ([]byte, error) {
 		return nil, fmt.Errorf("MangaDex API returned %d: %s", resp.StatusCode, string(bodyBytes))
 	}
 
-	return io.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	s.setCached(url, body)
+	return body, nil
+}
+
+func (s *MangaDexService) getCached(url string) ([]byte, bool) {
+	now := time.Now()
+	s.cacheMu.RLock()
+	entry, ok := s.cache[url]
+	s.cacheMu.RUnlock()
+	if !ok || now.After(entry.expiresAt) {
+		if ok {
+			s.cacheMu.Lock()
+			if current, stillExists := s.cache[url]; stillExists && now.After(current.expiresAt) {
+				delete(s.cache, url)
+			}
+			s.cacheMu.Unlock()
+		}
+		return nil, false
+	}
+	body := append([]byte(nil), entry.body...)
+	return body, true
+}
+
+func (s *MangaDexService) setCached(url string, body []byte) {
+	s.cacheMu.Lock()
+	defer s.cacheMu.Unlock()
+
+	if len(s.cache) > 256 {
+		now := time.Now()
+		for key, entry := range s.cache {
+			if now.After(entry.expiresAt) {
+				delete(s.cache, key)
+			}
+		}
+	}
+
+	s.cache[url] = mangaDexCacheEntry{
+		body:      append([]byte(nil), body...),
+		expiresAt: time.Now().Add(s.cacheTTL),
+	}
 }
 
 func (s *MangaDexService) toMangaSearchResult(m mdManga) model.MangaSearchResult {

@@ -53,6 +53,7 @@ func (h *ChapterHandler) GetChapters(c *fiber.Ctx) error {
 		})
 	}
 
+	c.Set("Cache-Control", "public, max-age=60, stale-while-revalidate=120")
 	return c.JSON(model.APIResponse{
 		Success: true,
 		Data: fiber.Map{
@@ -63,7 +64,6 @@ func (h *ChapterHandler) GetChapters(c *fiber.Ctx) error {
 		},
 	})
 }
-
 
 // GetChapterPages handles GET /api/chapter/:id/pages
 func (h *ChapterHandler) GetChapterPages(c *fiber.Ctx) error {
@@ -83,6 +83,7 @@ func (h *ChapterHandler) GetChapterPages(c *fiber.Ctx) error {
 		})
 	}
 
+	c.Set("Cache-Control", "public, max-age=120, stale-while-revalidate=300")
 	return c.JSON(model.APIResponse{
 		Success: true,
 		Data:    pages,
